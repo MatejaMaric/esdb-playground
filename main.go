@@ -10,7 +10,7 @@ import (
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
-	const connectionStr string = "esdb://localhost:2111,localhost:2112,localhost:2113?tls=true&tlsVerifyCert=false"
+	const connectionStr string = "esdb://localhost:2113?tls=false"
 
 	esdbConf, err := esdb.ParseConnectionString(connectionStr)
 	if err != nil {
