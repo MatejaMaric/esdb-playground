@@ -23,7 +23,24 @@ services:
       - type: volume
         source: eventstore-volume-logs
         target: /var/log/eventstore
+  mariadb:
+    image: mariadb:11.0.3-jammy
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: projected_models
+      MYSQL_USER: playground_user
+      MYSQL_PASSWORD: playground_user_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - type: volume
+        source: mariadb-volume-data
+        target: /var/lib/mysql
+      - type: bind
+        source: ./initdb.d
+        target: /docker-entrypoint-initdb.d
 
 volumes:
   eventstore-volume-data:
   eventstore-volume-logs:
+  mariadb-volume-data:

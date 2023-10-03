@@ -2,7 +2,10 @@ module github.com/MatejaMaric/esdb-playground
 
 go 1.21
 
-require github.com/EventStore/EventStore-Client-Go v1.0.2
+require (
+	github.com/EventStore/EventStore-Client-Go v1.0.2
+	github.com/go-sql-driver/mysql v1.7.1
+)
 
 require (
 	github.com/gofrs/uuid v3.3.0+incompatible // indirect
