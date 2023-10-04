@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/EventStore/EventStore-Client-Go/esdb"
+
+	"github.com/gofrs/uuid"
 )
 
 type User struct {
@@ -21,8 +23,10 @@ type User struct {
 }
 
 type CreateUserEvent struct {
-	Username string
+	Username string `json:"username"`
 }
+
+const StreamID string = "user_events"
 
 func main() {
 	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
@@ -98,6 +102,54 @@ func (h *ReqHandler) handleCreateUser(res http.ResponseWriter, req *http.Request
 		res.WriteHeader(http.StatusBadRequest)
 		return
 	}
+
+	exists, err := usernameExists(h.Ctx, h.SqlClient, event.Username)
+	if err != nil {
+		h.Log.Error("failed to check if the username exists", "error", err)
+		res.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	if exists {
+		encoder := json.NewEncoder(res)
+		if err := encoder.Encode(map[string]string{"error": "username already exists"}); err != nil {
+			h.Log.Error("failed to encode 'exists' response to json", "error", err)
+			res.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		return
+	}
+
+	eventId, err := uuid.NewV4()
+	if err != nil {
+		h.Log.Error("failed to create a uuid", "error", err)
+		res.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	data, err := json.Marshal(event)
+	if err != nil {
+		h.Log.Error("failed to marshal json", "error", err)
+		res.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	events := []esdb.EventData{
+		{
+			EventID:     eventId,
+			EventType:   "CreateUser",
+			ContentType: esdb.JsonContentType,
+			Data:        data,
+		},
+	}
+
+	appendResult, err := h.EsdbClient.AppendToStream(h.Ctx, StreamID, esdb.AppendToStreamOptions{}, events...)
+	if err != nil {
+		h.Log.Error("failed to append to stream", "error", err)
+		res.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	h.Log.Debug("successfully appended to stream", "appendResult", appendResult)
 
 	res.WriteHeader(http.StatusOK)
 }
