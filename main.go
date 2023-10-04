@@ -5,26 +5,82 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
 
 	"github.com/EventStore/EventStore-Client-Go/esdb"
+	"golang.org/x/net/context"
 
 	"github.com/go-sql-driver/mysql"
 )
 
+type User struct {
+	Id         int64
+	Username   string
+	LoginCount int32
+}
+
 func main() {
+	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
 	_, err := connectToEventStoreDB()
 	if err != nil {
 		logger.Error("failed to connect to EventStoreDB instance", "error", err)
+		os.Exit(1)
 	}
 	logger.Info("successfully connected to EventStoreDB instance")
 
-	_, err = connectToMariaDB()
+	db, err := connectToMariaDB()
 	if err != nil {
 		logger.Error("failed to connect to MariaDB instance", "error", err)
+		os.Exit(1)
 	}
 	logger.Info("successfully connected to MariaDB instance")
+
+	id, err := insertUser(ctx, db, User{Username: "testuser"})
+	if err != nil {
+		logger.Error("failed inseting user into MariaDB", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("successfully inserted user into MariaDB", "id", id)
+}
+
+func insertUser(ctx context.Context, db *sql.DB, user User) (int64, error) {
+	result, err := db.ExecContext(ctx, "INSERT INTO users (username, login_count) VALUES (?, ?)", user.Username, user.LoginCount)
+	if err != nil {
+		return 0, fmt.Errorf("failed to exec insert command: %v", err)
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		return 0, fmt.Errorf("failed getting the last insert id: %v", err)
+	}
+
+	return id, nil
+}
+
+func getAllUser(ctx context.Context, db *sql.DB) ([]User, error) {
+	var users []User
+
+	rows, err := db.QueryContext(ctx, "SELECT id, username, login_count FROM users")
+	if err != nil {
+		return nil, fmt.Errorf("failed to select users: %v", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var user User
+		if err := rows.Scan(&user.Id, &user.Username, &user.LoginCount); err != nil {
+			return nil, fmt.Errorf("failed to scan the row: %v", err)
+		}
+		users = append(users, user)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows.Err(): %v", err)
+	}
+
+	return users, nil
 }
 
 func connectToEventStoreDB() (*esdb.Client, error) {
