@@ -9,6 +9,12 @@ import (
 	"github.com/go-sql-driver/mysql"
 )
 
+type User struct {
+	Id         int64
+	Username   string
+	LoginCount int32
+}
+
 func connectToEventStoreDB() (*esdb.Client, error) {
 	const connectionStr string = "esdb://localhost:2113?tls=false"
 
