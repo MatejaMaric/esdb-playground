@@ -75,7 +75,7 @@ func usernameExists(ctx context.Context, db *sql.DB, username string) (bool, err
 	return exists, nil
 }
 
-func getAllUser(ctx context.Context, db *sql.DB) ([]User, error) {
+func getAllUsers(ctx context.Context, db *sql.DB) ([]User, error) {
 	var users []User
 
 	rows, err := db.QueryContext(ctx, "SELECT id, username, login_count FROM users")

@@ -4,10 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"time"
 
 	"github.com/EventStore/EventStore-Client-Go/esdb"
 )
@@ -40,22 +42,24 @@ func main() {
 	}
 	logger.Info("successfully connected to MariaDB instance")
 
-	id, err := insertUser(ctx, sqlClient, User{Username: "testuser"})
-	logger.Debug("insertUser results", "id", id, "error", err)
-
-	exists, err := usernameExists(ctx, sqlClient, "testuser")
-	logger.Debug("usernameExists results", "exists", exists, "error", err)
-
-	exists, err = usernameExists(ctx, sqlClient, "another_user")
-	logger.Debug("usernameExists results", "exists", exists, "error", err)
-
 	srv := &http.Server{
 		Addr:    ":8080",
 		Handler: NewReqHandler(ctx, logger, esdbClient, sqlClient),
 	}
 
-	if err := srv.ListenAndServe(); err != nil {
-		slog.Error("server's ListenAndServe method returned an error", "error", err)
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("server's ListenAndServe method returned an error", "error", err)
+		}
+	}()
+
+	<-ctx.Done()
+	logger.Info("shutdown signal received")
+
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(timeoutCtx); err != nil {
+		slog.Error("server shutdown returned an error", "error", err)
 	}
 }
 
@@ -76,6 +80,15 @@ func NewReqHandler(ctx context.Context, logger *slog.Logger, esdbClient *esdb.Cl
 }
 
 func (h *ReqHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	switch req.Method {
+	case http.MethodGet:
+		h.handleGetAllUsers(res, req)
+	case http.MethodPost:
+		h.handleCreateUser(res, req)
+	}
+}
+
+func (h *ReqHandler) handleCreateUser(res http.ResponseWriter, req *http.Request) {
 	defer req.Body.Close()
 
 	var event CreateUserEvent
@@ -87,4 +100,20 @@ func (h *ReqHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	}
 
 	res.WriteHeader(http.StatusOK)
+}
+
+func (h *ReqHandler) handleGetAllUsers(res http.ResponseWriter, req *http.Request) {
+	users, err := getAllUsers(h.Ctx, h.SqlClient)
+	if err != nil {
+		h.Log.Error("failed to get all users", "error", err)
+		res.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	encoder := json.NewEncoder(res)
+	if err := encoder.Encode(users); err != nil {
+		h.Log.Error("failed to encode users to json", "error", err)
+		res.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 }
