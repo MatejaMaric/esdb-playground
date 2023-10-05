@@ -35,7 +35,13 @@ func main() {
 
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			slog.Error("server's ListenAndServe method returned an error", "error", err)
+			logger.Error("server's ListenAndServe method returned an error", "error", err)
+		}
+	}()
+
+	go func() {
+		if err := handleEvents(ctx, logger, esdbClient, sqlClient); err != nil {
+			logger.Error("handleEvents failed", "error", err)
 		}
 	}()
 
@@ -45,6 +51,6 @@ func main() {
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(timeoutCtx); err != nil {
-		slog.Error("server shutdown returned an error", "error", err)
+		logger.Error("server shutdown returned an error", "error", err)
 	}
 }

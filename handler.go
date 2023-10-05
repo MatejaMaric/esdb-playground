@@ -11,12 +11,6 @@ import (
 	"github.com/gofrs/uuid"
 )
 
-type CreateUserEvent struct {
-	Username string `json:"username"`
-}
-
-const StreamID string = "user_events"
-
 type ReqHandler struct {
 	Ctx        context.Context
 	Log        *slog.Logger
@@ -87,7 +81,7 @@ func (h *ReqHandler) handleCreateUser(res http.ResponseWriter, req *http.Request
 	events := []esdb.EventData{
 		{
 			EventID:     eventId,
-			EventType:   "CreateUser",
+			EventType:   string(CreateUser),
 			ContentType: esdb.JsonContentType,
 			Data:        data,
 		},
