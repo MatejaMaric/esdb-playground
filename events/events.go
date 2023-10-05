@@ -81,22 +81,18 @@ func handleStream(ctx context.Context, logger *slog.Logger, esdbClient *esdb.Cli
 		}
 	}()
 
-	for loop := true; loop; {
-		select {
-		case <-ctx.Done():
-			loop = false
-		default:
-			subEvent := stream.Recv()
+	for {
+		subEvent := stream.Recv()
 
-			if subEvent.EventAppeared != nil {
-				if err := handleEvent(ctx, sqlClient, subEvent.EventAppeared); err != nil {
-					logger.Error("event handler returned an error", "error", err)
-				}
+		if subEvent.EventAppeared != nil {
+			if err := handleEvent(ctx, sqlClient, subEvent.EventAppeared); err != nil {
+				logger.Error("event handler returned an error", "error", err)
 			}
+		}
 
-			if subEvent.SubscriptionDropped != nil {
-				break
-			}
+		if subEvent.SubscriptionDropped != nil {
+			logger.Info("subscription dropped", "error", subEvent.SubscriptionDropped.Error)
+			break
 		}
 	}
 
