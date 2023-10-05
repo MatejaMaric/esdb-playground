@@ -34,14 +34,14 @@ func main() {
 	}
 
 	go func() {
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.Error("server's ListenAndServe method returned an error", "error", err)
+		if err := handleEvents(ctx, logger, esdbClient, sqlClient); err != nil {
+			logger.Error("handleEvents failed", "error", err)
 		}
 	}()
 
 	go func() {
-		if err := handleEvents(ctx, logger, esdbClient, sqlClient); err != nil {
-			logger.Error("handleEvents failed", "error", err)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Error("server's ListenAndServe method returned an error", "error", err)
 		}
 	}()
 
