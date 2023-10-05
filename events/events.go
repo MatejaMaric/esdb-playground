@@ -1,4 +1,4 @@
-package main
+package events
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"log/slog"
 
 	"github.com/EventStore/EventStore-Client-Go/esdb"
+	"github.com/MatejaMaric/esdb-playground/db"
 )
 
 type Event string
@@ -23,7 +24,7 @@ type CreateUserEvent struct {
 
 const UserStream string = "user_events"
 
-func handleStream(ctx context.Context, logger *slog.Logger, esdbClient *esdb.Client, sqlClient *sql.DB) error {
+func HandleStream(ctx context.Context, logger *slog.Logger, esdbClient *esdb.Client, sqlClient *sql.DB) error {
 	stream, err := esdbClient.SubscribeToStream(ctx, UserStream, esdb.SubscribeToStreamOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to subscribe to stream: %v", err)
@@ -72,7 +73,7 @@ func handleCreateUserEvent(ctx context.Context, sqlClient *sql.DB, rawEvent *esd
 		return fmt.Errorf("failed to unmarshal event: %v", err)
 	}
 
-	if _, err := insertUser(ctx, sqlClient, User{Username: event.Username}); err != nil {
+	if _, err := db.InsertUser(ctx, sqlClient, db.User{Username: event.Username}); err != nil {
 		return fmt.Errorf("failed to insert user: %v", err)
 	}
 

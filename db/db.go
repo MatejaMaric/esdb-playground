@@ -1,4 +1,4 @@
-package main
+package db
 
 import (
 	"context"
@@ -15,7 +15,7 @@ type User struct {
 	LoginCount int32
 }
 
-func connectToEventStoreDB() (*esdb.Client, error) {
+func ConnectToEventStoreDB() (*esdb.Client, error) {
 	const connectionStr string = "esdb://localhost:2113?tls=false"
 
 	esdbConf, err := esdb.ParseConnectionString(connectionStr)
@@ -26,7 +26,7 @@ func connectToEventStoreDB() (*esdb.Client, error) {
 	return esdb.NewClient(esdbConf)
 }
 
-func connectToMariaDB() (*sql.DB, error) {
+func ConnectToMariaDB() (*sql.DB, error) {
 	cfg := mysql.Config{
 		Net:                  "tcp",
 		Addr:                 "127.0.0.1:3306",
@@ -48,7 +48,7 @@ func connectToMariaDB() (*sql.DB, error) {
 	return db, nil
 }
 
-func insertUser(ctx context.Context, db *sql.DB, user User) (int64, error) {
+func InsertUser(ctx context.Context, db *sql.DB, user User) (int64, error) {
 	result, err := db.ExecContext(ctx, "INSERT INTO users (username, login_count) VALUES (?, ?)", user.Username, user.LoginCount)
 	if err != nil {
 		return 0, fmt.Errorf("failed to exec insert command: %v", err)
@@ -62,7 +62,7 @@ func insertUser(ctx context.Context, db *sql.DB, user User) (int64, error) {
 	return id, nil
 }
 
-func usernameExists(ctx context.Context, db *sql.DB, username string) (bool, error) {
+func UsernameExists(ctx context.Context, db *sql.DB, username string) (bool, error) {
 	query, err := db.PrepareContext(ctx, "SELECT id FROM users WHERE username = ?")
 	if err != nil {
 		return true, fmt.Errorf("failed to prepare the statement: %v", err)
@@ -81,7 +81,7 @@ func usernameExists(ctx context.Context, db *sql.DB, username string) (bool, err
 	return exists, nil
 }
 
-func getAllUsers(ctx context.Context, db *sql.DB) ([]User, error) {
+func GetAllUsers(ctx context.Context, db *sql.DB) ([]User, error) {
 	var users []User
 
 	rows, err := db.QueryContext(ctx, "SELECT id, username, login_count FROM users")

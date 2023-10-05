@@ -1,4 +1,4 @@
-package main
+package handler
 
 import (
 	"context"
@@ -8,18 +8,20 @@ import (
 	"net/http"
 
 	"github.com/EventStore/EventStore-Client-Go/esdb"
+	"github.com/MatejaMaric/esdb-playground/db"
+	"github.com/MatejaMaric/esdb-playground/events"
 	"github.com/gofrs/uuid"
 )
 
-type ReqHandler struct {
+type Handler struct {
 	Ctx        context.Context
 	Log        *slog.Logger
 	EsdbClient *esdb.Client
 	SqlClient  *sql.DB
 }
 
-func NewReqHandler(ctx context.Context, logger *slog.Logger, esdbClient *esdb.Client, sqlClient *sql.DB) *ReqHandler {
-	return &ReqHandler{
+func New(ctx context.Context, logger *slog.Logger, esdbClient *esdb.Client, sqlClient *sql.DB) *Handler {
+	return &Handler{
 		Ctx:        ctx,
 		Log:        logger,
 		EsdbClient: esdbClient,
@@ -27,7 +29,7 @@ func NewReqHandler(ctx context.Context, logger *slog.Logger, esdbClient *esdb.Cl
 	}
 }
 
-func (h *ReqHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+func (h *Handler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case http.MethodGet:
 		h.handleGetAllUsers(res, req)
@@ -36,10 +38,10 @@ func (h *ReqHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (h *ReqHandler) handleCreateUser(res http.ResponseWriter, req *http.Request) {
+func (h *Handler) handleCreateUser(res http.ResponseWriter, req *http.Request) {
 	defer req.Body.Close()
 
-	var event CreateUserEvent
+	var event events.CreateUserEvent
 	decoder := json.NewDecoder(req.Body)
 	if err := decoder.Decode(&event); err != nil {
 		h.Log.Error("failed to decode request", "error", err)
@@ -47,7 +49,7 @@ func (h *ReqHandler) handleCreateUser(res http.ResponseWriter, req *http.Request
 		return
 	}
 
-	exists, err := usernameExists(h.Ctx, h.SqlClient, event.Username)
+	exists, err := db.UsernameExists(h.Ctx, h.SqlClient, event.Username)
 	if err != nil {
 		h.Log.Error("failed to check if the username exists", "error", err)
 		res.WriteHeader(http.StatusInternalServerError)
@@ -78,16 +80,14 @@ func (h *ReqHandler) handleCreateUser(res http.ResponseWriter, req *http.Request
 		return
 	}
 
-	events := []esdb.EventData{
-		{
-			EventID:     eventId,
-			EventType:   string(CreateUser),
-			ContentType: esdb.JsonContentType,
-			Data:        data,
-		},
+	eventData := esdb.EventData{
+		EventID:     eventId,
+		EventType:   string(events.CreateUser),
+		ContentType: esdb.JsonContentType,
+		Data:        data,
 	}
 
-	appendResult, err := h.EsdbClient.AppendToStream(h.Ctx, UserStream, esdb.AppendToStreamOptions{}, events...)
+	appendResult, err := h.EsdbClient.AppendToStream(h.Ctx, events.UserStream, esdb.AppendToStreamOptions{}, eventData)
 	if err != nil {
 		h.Log.Error("failed to append to stream", "error", err)
 		res.WriteHeader(http.StatusInternalServerError)
@@ -98,8 +98,8 @@ func (h *ReqHandler) handleCreateUser(res http.ResponseWriter, req *http.Request
 	res.WriteHeader(http.StatusOK)
 }
 
-func (h *ReqHandler) handleGetAllUsers(res http.ResponseWriter, req *http.Request) {
-	users, err := getAllUsers(h.Ctx, h.SqlClient)
+func (h *Handler) handleGetAllUsers(res http.ResponseWriter, req *http.Request) {
+	users, err := db.GetAllUsers(h.Ctx, h.SqlClient)
 	if err != nil {
 		h.Log.Error("failed to get all users", "error", err)
 		res.WriteHeader(http.StatusInternalServerError)

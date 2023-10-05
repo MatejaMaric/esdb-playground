@@ -8,20 +8,24 @@ import (
 	"os"
 	"os/signal"
 	"time"
+
+	"github.com/MatejaMaric/esdb-playground/db"
+	"github.com/MatejaMaric/esdb-playground/events"
+	"github.com/MatejaMaric/esdb-playground/handler"
 )
 
 func main() {
 	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
-	esdbClient, err := connectToEventStoreDB()
+	esdbClient, err := db.ConnectToEventStoreDB()
 	if err != nil {
 		logger.Error("failed to connect to EventStoreDB instance", "error", err)
 		os.Exit(1)
 	}
 	logger.Info("successfully connected to EventStoreDB instance")
 
-	sqlClient, err := connectToMariaDB()
+	sqlClient, err := db.ConnectToMariaDB()
 	if err != nil {
 		logger.Error("failed to connect to MariaDB instance", "error", err)
 		os.Exit(1)
@@ -30,11 +34,11 @@ func main() {
 
 	srv := &http.Server{
 		Addr:    ":8080",
-		Handler: NewReqHandler(ctx, logger, esdbClient, sqlClient),
+		Handler: handler.New(ctx, logger, esdbClient, sqlClient),
 	}
 
 	go func() {
-		if err := handleStream(ctx, logger, esdbClient, sqlClient); err != nil {
+		if err := events.HandleStream(ctx, logger, esdbClient, sqlClient); err != nil {
 			logger.Error("stream handler returned an error", "error", err)
 		}
 	}()
