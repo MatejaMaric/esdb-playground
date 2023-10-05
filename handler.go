@@ -87,7 +87,7 @@ func (h *ReqHandler) handleCreateUser(res http.ResponseWriter, req *http.Request
 		},
 	}
 
-	appendResult, err := h.EsdbClient.AppendToStream(h.Ctx, StreamID, esdb.AppendToStreamOptions{}, events...)
+	appendResult, err := h.EsdbClient.AppendToStream(h.Ctx, UserStream, esdb.AppendToStreamOptions{}, events...)
 	if err != nil {
 		h.Log.Error("failed to append to stream", "error", err)
 		res.WriteHeader(http.StatusInternalServerError)

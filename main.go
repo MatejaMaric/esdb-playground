@@ -34,8 +34,8 @@ func main() {
 	}
 
 	go func() {
-		if err := handleEvents(ctx, logger, esdbClient, sqlClient); err != nil {
-			logger.Error("handleEvents failed", "error", err)
+		if err := handleStream(ctx, logger, esdbClient, sqlClient); err != nil {
+			logger.Error("stream handler returned an error", "error", err)
 		}
 	}()
 

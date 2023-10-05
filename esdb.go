@@ -21,10 +21,10 @@ type CreateUserEvent struct {
 	Username string `json:"username"`
 }
 
-const StreamID string = "user_events"
+const UserStream string = "user_events"
 
-func handleEvents(ctx context.Context, logger *slog.Logger, esdbClient *esdb.Client, sqlClient *sql.DB) error {
-	stream, err := esdbClient.SubscribeToStream(ctx, StreamID, esdb.SubscribeToStreamOptions{})
+func handleStream(ctx context.Context, logger *slog.Logger, esdbClient *esdb.Client, sqlClient *sql.DB) error {
+	stream, err := esdbClient.SubscribeToStream(ctx, UserStream, esdb.SubscribeToStreamOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to subscribe to stream: %v", err)
 	}
@@ -36,24 +36,13 @@ func handleEvents(ctx context.Context, logger *slog.Logger, esdbClient *esdb.Cli
 		}
 	}()
 
-	handleEvent := func(resolved *esdb.ResolvedEvent) error {
-		if resolved.Event == nil {
-			return errors.New("resolved.Event is nil")
-		}
-
-		switch resolved.Event.EventType {
-		case string(CreateUser):
-			return handleCreateUserEvent(ctx, sqlClient, resolved.Event)
-		default:
-			return fmt.Errorf("unknown event type: %s", resolved.Event.EventType)
-		}
-	}
-
 	for {
 		subEvent := stream.Recv()
 
 		if subEvent.EventAppeared != nil {
-			handleEvent(subEvent.EventAppeared)
+			if err := handleEvent(ctx, sqlClient, subEvent.EventAppeared); err != nil {
+				logger.Error("event handler returned an error", "error", err)
+			}
 		}
 
 		if subEvent.SubscriptionDropped != nil {
@@ -62,6 +51,19 @@ func handleEvents(ctx context.Context, logger *slog.Logger, esdbClient *esdb.Cli
 	}
 
 	return nil
+}
+
+func handleEvent(ctx context.Context, sqlClient *sql.DB, resolved *esdb.ResolvedEvent) error {
+	if resolved.Event == nil {
+		return errors.New("resolved.Event is nil")
+	}
+
+	switch resolved.Event.EventType {
+	case string(CreateUser):
+		return handleCreateUserEvent(ctx, sqlClient, resolved.Event)
+	default:
+		return fmt.Errorf("unknown event type: %s", resolved.Event.EventType)
+	}
 }
 
 func handleCreateUserEvent(ctx context.Context, sqlClient *sql.DB, rawEvent *esdb.RecordedEvent) error {
