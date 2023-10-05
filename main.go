@@ -37,9 +37,11 @@ func main() {
 		Handler: handler.New(ctx, logger, esdbClient, sqlClient),
 	}
 
+	eventHandler := events.NewHandler(ctx, logger, esdbClient, sqlClient)
+
 	go func() {
-		if err := events.HandleStream(ctx, logger, esdbClient, sqlClient); err != nil {
-			logger.Error("stream handler returned an error", "error", err)
+		if err := eventHandler.Start(); err != nil {
+			logger.Error("event handler returned an error", "error", err)
 		}
 	}()
 
@@ -56,5 +58,9 @@ func main() {
 	defer cancel()
 	if err := srv.Shutdown(timeoutCtx); err != nil {
 		logger.Error("server shutdown returned an error", "error", err)
+	}
+
+	if err := eventHandler.Stop(5 * time.Second); err != nil {
+		logger.Error("event handler shutdown returned an error", "error", err)
 	}
 }
