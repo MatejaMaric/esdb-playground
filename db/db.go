@@ -13,6 +13,7 @@ type User struct {
 	Id         int64
 	Username   string
 	LoginCount int32
+	Version    uint64
 }
 
 func ConnectToEventStoreDB() (*esdb.Client, error) {
@@ -49,7 +50,7 @@ func ConnectToMariaDB() (*sql.DB, error) {
 }
 
 func InsertUser(ctx context.Context, db *sql.DB, user User) (int64, error) {
-	result, err := db.ExecContext(ctx, "INSERT INTO users (username, login_count) VALUES (?, ?)", user.Username, user.LoginCount)
+	result, err := db.ExecContext(ctx, "INSERT INTO users (username, login_count, version) VALUES (?, ?, ?)", user.Username, user.LoginCount, user.Version)
 	if err != nil {
 		return 0, fmt.Errorf("failed to exec insert command: %v", err)
 	}
@@ -84,7 +85,7 @@ func UsernameExists(ctx context.Context, db *sql.DB, username string) (bool, err
 func GetAllUsers(ctx context.Context, db *sql.DB) ([]User, error) {
 	var users []User
 
-	rows, err := db.QueryContext(ctx, "SELECT id, username, login_count FROM users")
+	rows, err := db.QueryContext(ctx, "SELECT id, username, login_count, version FROM users")
 	if err != nil {
 		return nil, fmt.Errorf("failed to select users: %v", err)
 	}
@@ -92,7 +93,7 @@ func GetAllUsers(ctx context.Context, db *sql.DB) ([]User, error) {
 
 	for rows.Next() {
 		var user User
-		if err := rows.Scan(&user.Id, &user.Username, &user.LoginCount); err != nil {
+		if err := rows.Scan(&user.Id, &user.Username, &user.LoginCount, &user.Version); err != nil {
 			return nil, fmt.Errorf("failed to scan the row: %v", err)
 		}
 		users = append(users, user)

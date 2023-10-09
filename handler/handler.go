@@ -4,13 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 
 	"github.com/EventStore/EventStore-Client-Go/esdb"
 	"github.com/MatejaMaric/esdb-playground/db"
 	"github.com/MatejaMaric/esdb-playground/events"
-	"github.com/gofrs/uuid"
 )
 
 type Handler struct {
@@ -44,56 +44,24 @@ func (h *Handler) handleCreateUser(res http.ResponseWriter, req *http.Request) {
 	var event events.CreateUserEvent
 	decoder := json.NewDecoder(req.Body)
 	if err := decoder.Decode(&event); err != nil {
-		h.Log.Error("failed to decode request", "error", err)
-		res.WriteHeader(http.StatusBadRequest)
+		http.Error(res, "failed to decode request", http.StatusBadRequest)
 		return
 	}
 
-	exists, err := db.UsernameExists(h.Ctx, h.SqlClient, event.Username)
-	if err != nil {
-		h.Log.Error("failed to check if the username exists", "error", err)
+	appendRes, err := events.AppendCreateUserEvent(h.Ctx, h.EsdbClient, event)
+	if err != nil && errors.Is(err, esdb.ErrWrongExpectedStreamRevision) {
+		http.Error(res, "user already exists", http.StatusBadRequest)
+		return
+	} else if err != nil {
+		h.Log.Error("appending to stream resulted in an error", "error", err)
 		res.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-
-	if exists {
-		encoder := json.NewEncoder(res)
-		if err := encoder.Encode(map[string]string{"error": "username already exists"}); err != nil {
-			h.Log.Error("failed to encode 'exists' response to json", "error", err)
-			res.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		return
-	}
-
-	eventId, err := uuid.NewV4()
-	if err != nil {
-		h.Log.Error("failed to create a uuid", "error", err)
-		res.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	data, err := json.Marshal(event)
-	if err != nil {
-		h.Log.Error("failed to marshal json", "error", err)
-		res.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	eventData := esdb.EventData{
-		EventID:     eventId,
-		EventType:   string(events.CreateUser),
-		ContentType: esdb.JsonContentType,
-		Data:        data,
-	}
-
-	appendResult, err := h.EsdbClient.AppendToStream(h.Ctx, events.UserStream, esdb.AppendToStreamOptions{}, eventData)
-	if err != nil {
-		h.Log.Error("failed to append to stream", "error", err)
-		res.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	h.Log.Debug("successfully appended to stream", "appendResult", appendResult)
+	h.Log.Debug("successfully appended to stream",
+		"CommitPosition", appendRes.CommitPosition,
+		"PreparePosition", appendRes.PreparePosition,
+		"NextExpectedVersion", appendRes.NextExpectedVersion,
+	)
 
 	res.WriteHeader(http.StatusOK)
 }

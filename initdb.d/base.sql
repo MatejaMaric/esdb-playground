@@ -4,5 +4,6 @@ CREATE TABLE users(
     id BIGINT NOT NULL AUTO_INCREMENT,
     username VARCHAR(255) UNIQUE,
     login_count INT NOT NULL DEFAULT 0,
+    version BIGINT NOT NULL,
     CONSTRAINT PRIMARY KEY (id)
 );

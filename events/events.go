@@ -11,6 +11,7 @@ import (
 
 	"github.com/EventStore/EventStore-Client-Go/esdb"
 	"github.com/MatejaMaric/esdb-playground/db"
+	"github.com/gofrs/uuid"
 )
 
 type Event string
@@ -69,7 +70,12 @@ func (h *Handler) Stop(timeout time.Duration) error {
 }
 
 func handleStream(ctx context.Context, logger *slog.Logger, esdbClient *esdb.Client, sqlClient *sql.DB) error {
-	stream, err := esdbClient.SubscribeToStream(ctx, UserStream, esdb.SubscribeToStreamOptions{})
+	stream, err := esdbClient.SubscribeToAll(ctx, esdb.SubscribeToAllOptions{
+		Filter: &esdb.SubscriptionFilter{
+			Type:     esdb.StreamFilterType,
+			Prefixes: []string{UserStream},
+		},
+	})
 	if err != nil {
 		return fmt.Errorf("failed to subscribe to stream: %v", err)
 	}
@@ -87,6 +93,12 @@ func handleStream(ctx context.Context, logger *slog.Logger, esdbClient *esdb.Cli
 		if subEvent.EventAppeared != nil {
 			if err := handleEvent(ctx, sqlClient, subEvent.EventAppeared); err != nil {
 				logger.Error("event handler returned an error", "error", err)
+			} else {
+				logger.Debug("handled event",
+					"EventNumber", subEvent.EventAppeared.Event.EventNumber,
+					"CommitPosition", subEvent.EventAppeared.Event.Position.Commit,
+					"PreparePosition", subEvent.EventAppeared.Event.Position.Prepare,
+				)
 			}
 		}
 
@@ -118,9 +130,47 @@ func handleCreateUserEvent(ctx context.Context, sqlClient *sql.DB, rawEvent *esd
 		return fmt.Errorf("failed to unmarshal event: %v", err)
 	}
 
-	if _, err := db.InsertUser(ctx, sqlClient, db.User{Username: event.Username}); err != nil {
+	user := db.User{
+		Username:   event.Username,
+		LoginCount: 0,
+		Version:    rawEvent.EventNumber,
+	}
+
+	if _, err := db.InsertUser(ctx, sqlClient, user); err != nil {
 		return fmt.Errorf("failed to insert user: %v", err)
 	}
 
 	return nil
+}
+
+func AppendCreateUserEvent(ctx context.Context, esdbClient *esdb.Client, event CreateUserEvent) (*esdb.WriteResult, error) {
+	eventId, err := uuid.NewV4()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create a uuid: %v", err)
+	}
+
+	data, err := json.Marshal(event)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal json: %v", err)
+	}
+
+	eventData := esdb.EventData{
+		EventID:     eventId,
+		EventType:   string(CreateUser),
+		ContentType: esdb.JsonContentType,
+		Data:        data,
+	}
+
+	aopts := esdb.AppendToStreamOptions{
+		ExpectedRevision: esdb.NoStream{},
+	}
+
+	streamName := fmt.Sprintf("%s-%s", UserStream, event.Username)
+
+	appendResult, err := esdbClient.AppendToStream(ctx, streamName, aopts, eventData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to append to stream: %v", err)
+	}
+
+	return appendResult, nil
 }
