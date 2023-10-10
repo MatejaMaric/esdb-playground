@@ -60,13 +60,13 @@ func InsertUser(ctx context.Context, db *sql.DB, user events.UserStateEvent) (in
 func GetUser(ctx context.Context, db *sql.DB, username string) (events.UserStateEvent, error) {
 	var user events.UserStateEvent
 
-	query, err := db.PrepareContext(ctx, "SELECT id, username, login_count, version FROM users WHERE username = ?")
+	query, err := db.PrepareContext(ctx, "SELECT username, login_count, version FROM users WHERE username = ?")
 	if err != nil {
 		return user, fmt.Errorf("failed to prepare the statement: %w", err)
 	}
 
 	row := query.QueryRowContext(ctx, username)
-	if err := row.Scan(&user.Id, &user.Username, &user.LoginCount, &user.Version); err != nil {
+	if err := row.Scan(&user.Username, &user.LoginCount, &user.Version); err != nil {
 		return user, fmt.Errorf("failed to get the user %s: %w", username, err)
 	}
 
@@ -76,7 +76,7 @@ func GetUser(ctx context.Context, db *sql.DB, username string) (events.UserState
 func GetAllUsers(ctx context.Context, db *sql.DB) ([]events.UserStateEvent, error) {
 	var users []events.UserStateEvent
 
-	rows, err := db.QueryContext(ctx, "SELECT id, username, login_count, version FROM users")
+	rows, err := db.QueryContext(ctx, "SELECT username, login_count, version FROM users")
 	if err != nil {
 		return nil, fmt.Errorf("failed to select users: %w", err)
 	}
@@ -84,7 +84,7 @@ func GetAllUsers(ctx context.Context, db *sql.DB) ([]events.UserStateEvent, erro
 
 	for rows.Next() {
 		var user events.UserStateEvent
-		if err := rows.Scan(&user.Id, &user.Username, &user.LoginCount, &user.Version); err != nil {
+		if err := rows.Scan(&user.Username, &user.LoginCount, &user.Version); err != nil {
 			return nil, fmt.Errorf("failed to scan the row: %w", err)
 		}
 		users = append(users, user)

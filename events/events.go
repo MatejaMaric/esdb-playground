@@ -14,7 +14,6 @@ const (
 )
 
 type UserStateEvent struct {
-	Id         int64  `json:"id"`
 	Username   string `json:"username"`
 	LoginCount int32  `json:"login_count"`
 	Version    uint64 `json:"version"`

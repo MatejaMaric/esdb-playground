@@ -1,9 +1,8 @@
 USE projected_models;
 DROP TABLE IF EXISTS users;
 CREATE TABLE users(
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    username VARCHAR(255) UNIQUE,
+    username VARCHAR(255),
     login_count INT NOT NULL DEFAULT 0,
     version BIGINT NOT NULL,
-    CONSTRAINT PRIMARY KEY (id)
+    CONSTRAINT PRIMARY KEY (username)
 );
