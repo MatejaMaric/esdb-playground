@@ -21,7 +21,7 @@ func ConnectToEventStoreDB() (*esdb.Client, error) {
 
 	esdbConf, err := esdb.ParseConnectionString(connectionStr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse EventStoreDB connection string: %v", err)
+		return nil, fmt.Errorf("failed to parse EventStoreDB connection string: %w", err)
 	}
 
 	return esdb.NewClient(esdbConf)
@@ -39,11 +39,11 @@ func ConnectToMariaDB() (*sql.DB, error) {
 
 	db, err := sql.Open("mysql", cfg.FormatDSN())
 	if err != nil {
-		return nil, fmt.Errorf("failed to open the connection to MariaDB: %v", err)
+		return nil, fmt.Errorf("failed to open the connection to MariaDB: %w", err)
 	}
 
 	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("failed to ping MariaDB: %v", err)
+		return nil, fmt.Errorf("failed to ping MariaDB: %w", err)
 	}
 
 	return db, nil
@@ -52,12 +52,12 @@ func ConnectToMariaDB() (*sql.DB, error) {
 func InsertUser(ctx context.Context, db *sql.DB, user User) (int64, error) {
 	result, err := db.ExecContext(ctx, "INSERT INTO users (username, login_count, version) VALUES (?, ?, ?)", user.Username, user.LoginCount, user.Version)
 	if err != nil {
-		return 0, fmt.Errorf("failed to exec insert command: %v", err)
+		return 0, fmt.Errorf("failed to exec insert command: %w", err)
 	}
 
 	id, err := result.LastInsertId()
 	if err != nil {
-		return 0, fmt.Errorf("failed getting the last insert id: %v", err)
+		return 0, fmt.Errorf("failed getting the last insert id: %w", err)
 	}
 
 	return id, nil
@@ -66,17 +66,17 @@ func InsertUser(ctx context.Context, db *sql.DB, user User) (int64, error) {
 func UsernameExists(ctx context.Context, db *sql.DB, username string) (bool, error) {
 	query, err := db.PrepareContext(ctx, "SELECT id FROM users WHERE username = ?")
 	if err != nil {
-		return true, fmt.Errorf("failed to prepare the statement: %v", err)
+		return true, fmt.Errorf("failed to prepare the statement: %w", err)
 	}
 
 	rows, err := query.QueryContext(ctx, username)
 	if err != nil {
-		return true, fmt.Errorf("failed to query: %v", err)
+		return true, fmt.Errorf("failed to query: %w", err)
 	}
 
 	exists := rows.Next()
 	if err := rows.Err(); err != nil {
-		return true, fmt.Errorf("rows.Next() produced an error: %v", err)
+		return true, fmt.Errorf("rows.Next() produced an error: %w", err)
 	}
 
 	return exists, nil
@@ -87,20 +87,20 @@ func GetAllUsers(ctx context.Context, db *sql.DB) ([]User, error) {
 
 	rows, err := db.QueryContext(ctx, "SELECT id, username, login_count, version FROM users")
 	if err != nil {
-		return nil, fmt.Errorf("failed to select users: %v", err)
+		return nil, fmt.Errorf("failed to select users: %w", err)
 	}
 	defer rows.Close()
 
 	for rows.Next() {
 		var user User
 		if err := rows.Scan(&user.Id, &user.Username, &user.LoginCount, &user.Version); err != nil {
-			return nil, fmt.Errorf("failed to scan the row: %v", err)
+			return nil, fmt.Errorf("failed to scan the row: %w", err)
 		}
 		users = append(users, user)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("rows.Err(): %v", err)
+		return nil, fmt.Errorf("rows.Err(): %w", err)
 	}
 
 	return users, nil

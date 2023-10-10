@@ -77,7 +77,7 @@ func handleStream(ctx context.Context, logger *slog.Logger, esdbClient *esdb.Cli
 		},
 	})
 	if err != nil {
-		return fmt.Errorf("failed to subscribe to stream: %v", err)
+		return fmt.Errorf("failed to subscribe to stream: %w", err)
 	}
 	defer func() {
 		if err := stream.Close(); err != nil {
@@ -127,7 +127,7 @@ func handleEvent(ctx context.Context, sqlClient *sql.DB, resolved *esdb.Resolved
 func handleCreateUserEvent(ctx context.Context, sqlClient *sql.DB, rawEvent *esdb.RecordedEvent) error {
 	var event CreateUserEvent
 	if err := json.Unmarshal(rawEvent.Data, &event); err != nil {
-		return fmt.Errorf("failed to unmarshal event: %v", err)
+		return fmt.Errorf("failed to unmarshal event: %w", err)
 	}
 
 	user := db.User{
@@ -137,7 +137,7 @@ func handleCreateUserEvent(ctx context.Context, sqlClient *sql.DB, rawEvent *esd
 	}
 
 	if _, err := db.InsertUser(ctx, sqlClient, user); err != nil {
-		return fmt.Errorf("failed to insert user: %v", err)
+		return fmt.Errorf("failed to insert user: %w", err)
 	}
 
 	return nil
@@ -146,12 +146,12 @@ func handleCreateUserEvent(ctx context.Context, sqlClient *sql.DB, rawEvent *esd
 func AppendCreateUserEvent(ctx context.Context, esdbClient *esdb.Client, event CreateUserEvent) (*esdb.WriteResult, error) {
 	eventId, err := uuid.NewV4()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create a uuid: %v", err)
+		return nil, fmt.Errorf("failed to create a uuid: %w", err)
 	}
 
 	data, err := json.Marshal(event)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal json: %v", err)
+		return nil, fmt.Errorf("failed to marshal json: %w", err)
 	}
 
 	eventData := esdb.EventData{
@@ -169,7 +169,7 @@ func AppendCreateUserEvent(ctx context.Context, esdbClient *esdb.Client, event C
 
 	appendResult, err := esdbClient.AppendToStream(ctx, streamName, aopts, eventData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to append to stream: %v", err)
+		return nil, fmt.Errorf("failed to append to stream: %w", err)
 	}
 
 	return appendResult, nil
