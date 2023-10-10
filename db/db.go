@@ -96,3 +96,22 @@ func GetAllUsers(ctx context.Context, db *sql.DB) ([]events.UserStateEvent, erro
 
 	return users, nil
 }
+
+func UpdateUser(ctx context.Context, db *sql.DB, user events.UserStateEvent) (int64, error) {
+	stmt, err := db.PrepareContext(ctx, "UPDATE users SET login_count=?, version=? WHERE username=?")
+	if err != nil {
+		return 0, fmt.Errorf("failed to prepare the statement: %w", err)
+	}
+
+	result, err := stmt.ExecContext(ctx, user.LoginCount, user.Version, user.Username)
+	if err != nil {
+		return 0, fmt.Errorf("failed to exec update command: %w", err)
+	}
+
+	num, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get the number of affected rows: %w", err)
+	}
+
+	return num, nil
+}

@@ -35,6 +35,8 @@ func (h *HttpHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		h.handleGetAllUsers(res, req)
 	case http.MethodPost:
 		h.handleCreateUser(res, req)
+	case http.MethodPatch:
+		h.handleUserLogin(res, req)
 	}
 }
 
@@ -81,4 +83,33 @@ func (h *HttpHandler) handleGetAllUsers(res http.ResponseWriter, req *http.Reque
 		res.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+}
+
+func (h *HttpHandler) handleUserLogin(res http.ResponseWriter, req *http.Request) {
+	defer req.Body.Close()
+
+	var event events.LoginUserEvent
+	decoder := json.NewDecoder(req.Body)
+	if err := decoder.Decode(&event); err != nil {
+		http.Error(res, "failed to decode request", http.StatusBadRequest)
+		return
+	}
+
+	appendRes, err := AppendLoginUserEvent(h.Ctx, h.EsdbClient, event)
+	if err != nil && errors.Is(err, esdb.ErrStreamNotFound) {
+		http.Error(res, "user does not exists", http.StatusBadRequest)
+		return
+	}
+	if err != nil {
+		h.Log.Error("appending to stream resulted in an error", "error", err)
+		res.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	h.Log.Debug("successfully appended to stream",
+		"CommitPosition", appendRes.CommitPosition,
+		"PreparePosition", appendRes.PreparePosition,
+		"NextExpectedVersion", appendRes.NextExpectedVersion,
+	)
+
+	res.WriteHeader(http.StatusOK)
 }

@@ -146,3 +146,35 @@ func AppendCreateUserEvent(ctx context.Context, esdbClient *esdb.Client, event e
 
 	return appendResult, nil
 }
+
+func AppendLoginUserEvent(ctx context.Context, esdbClient *esdb.Client, event events.LoginUserEvent) (*esdb.WriteResult, error) {
+	eventId, err := uuid.NewV4()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create a uuid: %w", err)
+	}
+
+	data, err := json.Marshal(event)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal json: %w", err)
+	}
+
+	eventData := esdb.EventData{
+		EventID:     eventId,
+		EventType:   string(events.LoginUser),
+		ContentType: esdb.JsonContentType,
+		Data:        data,
+	}
+
+	aopts := esdb.AppendToStreamOptions{
+		ExpectedRevision: esdb.StreamExists{},
+	}
+
+	streamName := fmt.Sprintf("%s-%s", events.UserEventsStream, event.Username)
+
+	appendResult, err := esdbClient.AppendToStream(ctx, streamName, aopts, eventData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to append to stream: %w", err)
+	}
+
+	return appendResult, nil
+}
