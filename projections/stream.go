@@ -16,19 +16,11 @@ type streamProjection struct {
 	esdbClient *esdb.Client
 }
 
-func NewStreamProjection(ctx context.Context, esdbClient *esdb.Client) (Projection, error) {
-	md := esdb.StreamMetadata{}
-	md.SetMaxCount(16)
-
-	_, err := esdbClient.SetStreamMetadata(ctx, events.UserStateStream, esdb.AppendToStreamOptions{}, md)
-	if err != nil {
-		return nil, fmt.Errorf("error when setting stream metadata: %w", err)
-	}
-
+func NewStreamProjection(ctx context.Context, esdbClient *esdb.Client) Projection {
 	return &streamProjection{
 		ctx:        ctx,
 		esdbClient: esdbClient,
-	}, nil
+	}
 }
 
 func (p *streamProjection) HandleEvent(resolved *esdb.ResolvedEvent) error {
@@ -56,6 +48,8 @@ func (p *streamProjection) handleCreateUserEvent(rawEvent *esdb.RecordedEvent) e
 		Version:    0,
 	}
 
+	streamName := fmt.Sprintf("%s-%s", events.UserStateStream, event.Username)
+
 	eventId, err := uuid.NewV4()
 	if err != nil {
 		return fmt.Errorf("failed to create a uuid: %w", err)
@@ -75,9 +69,17 @@ func (p *streamProjection) handleCreateUserEvent(rawEvent *esdb.RecordedEvent) e
 
 	aopts := esdb.AppendToStreamOptions{ExpectedRevision: esdb.NoStream{}}
 
-	_, err = p.esdbClient.AppendToStream(p.ctx, events.UserStateStream, aopts, stateEvent)
+	_, err = p.esdbClient.AppendToStream(p.ctx, streamName, aopts, stateEvent)
 	if err != nil {
 		return fmt.Errorf("failed to append to stream: %w", err)
+	}
+
+	smd := esdb.StreamMetadata{}
+	smd.SetMaxCount(16)
+
+	_, err = p.esdbClient.SetStreamMetadata(p.ctx, streamName, esdb.AppendToStreamOptions{}, smd)
+	if err != nil {
+		return fmt.Errorf("error when setting stream metadata: %w", err)
 	}
 
 	return nil

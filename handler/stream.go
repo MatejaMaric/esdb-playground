@@ -77,11 +77,7 @@ func handleStream(ctx context.Context, logger *slog.Logger, esdbClient *esdb.Cli
 	}()
 
 	dbProjection := projections.NewDatabaseProjection(ctx, sqlClient)
-
-	streamProjection, err := projections.NewStreamProjection(ctx, esdbClient)
-	if err != nil {
-		return fmt.Errorf("failed to create new stream projection: %w", err)
-	}
+	streamProjection := projections.NewStreamProjection(ctx, esdbClient)
 
 	for {
 		subEvent := stream.Recv()
