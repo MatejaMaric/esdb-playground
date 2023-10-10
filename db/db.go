@@ -6,15 +6,9 @@ import (
 	"fmt"
 
 	"github.com/EventStore/EventStore-Client-Go/esdb"
+	"github.com/MatejaMaric/esdb-playground/events"
 	"github.com/go-sql-driver/mysql"
 )
-
-type User struct {
-	Id         int64
-	Username   string
-	LoginCount int32
-	Version    uint64
-}
 
 func ConnectToEventStoreDB() (*esdb.Client, error) {
 	const connectionStr string = "esdb://localhost:2113?tls=false"
@@ -49,7 +43,7 @@ func ConnectToMariaDB() (*sql.DB, error) {
 	return db, nil
 }
 
-func InsertUser(ctx context.Context, db *sql.DB, user User) (int64, error) {
+func InsertUser(ctx context.Context, db *sql.DB, user events.UserStateEvent) (int64, error) {
 	result, err := db.ExecContext(ctx, "INSERT INTO users (username, login_count, version) VALUES (?, ?, ?)", user.Username, user.LoginCount, user.Version)
 	if err != nil {
 		return 0, fmt.Errorf("failed to exec insert command: %w", err)
@@ -63,27 +57,24 @@ func InsertUser(ctx context.Context, db *sql.DB, user User) (int64, error) {
 	return id, nil
 }
 
-func UsernameExists(ctx context.Context, db *sql.DB, username string) (bool, error) {
-	query, err := db.PrepareContext(ctx, "SELECT id FROM users WHERE username = ?")
+func GetUser(ctx context.Context, db *sql.DB, username string) (events.UserStateEvent, error) {
+	var user events.UserStateEvent
+
+	query, err := db.PrepareContext(ctx, "SELECT id, username, login_count, version FROM users WHERE username = ?")
 	if err != nil {
-		return true, fmt.Errorf("failed to prepare the statement: %w", err)
+		return user, fmt.Errorf("failed to prepare the statement: %w", err)
 	}
 
-	rows, err := query.QueryContext(ctx, username)
-	if err != nil {
-		return true, fmt.Errorf("failed to query: %w", err)
+	row := query.QueryRowContext(ctx, username)
+	if err := row.Scan(&user.Id, &user.Username, &user.LoginCount, &user.Version); err != nil {
+		return user, fmt.Errorf("failed to get the user %s: %w", username, err)
 	}
 
-	exists := rows.Next()
-	if err := rows.Err(); err != nil {
-		return true, fmt.Errorf("rows.Next() produced an error: %w", err)
-	}
-
-	return exists, nil
+	return user, nil
 }
 
-func GetAllUsers(ctx context.Context, db *sql.DB) ([]User, error) {
-	var users []User
+func GetAllUsers(ctx context.Context, db *sql.DB) ([]events.UserStateEvent, error) {
+	var users []events.UserStateEvent
 
 	rows, err := db.QueryContext(ctx, "SELECT id, username, login_count, version FROM users")
 	if err != nil {
@@ -92,7 +83,7 @@ func GetAllUsers(ctx context.Context, db *sql.DB) ([]User, error) {
 	defer rows.Close()
 
 	for rows.Next() {
-		var user User
+		var user events.UserStateEvent
 		if err := rows.Scan(&user.Id, &user.Username, &user.LoginCount, &user.Version); err != nil {
 			return nil, fmt.Errorf("failed to scan the row: %w", err)
 		}

@@ -13,15 +13,15 @@ import (
 	"github.com/MatejaMaric/esdb-playground/events"
 )
 
-type Handler struct {
+type HttpHandler struct {
 	Ctx        context.Context
 	Log        *slog.Logger
 	EsdbClient *esdb.Client
 	SqlClient  *sql.DB
 }
 
-func New(ctx context.Context, logger *slog.Logger, esdbClient *esdb.Client, sqlClient *sql.DB) *Handler {
-	return &Handler{
+func NewHttpHandler(ctx context.Context, logger *slog.Logger, esdbClient *esdb.Client, sqlClient *sql.DB) *HttpHandler {
+	return &HttpHandler{
 		Ctx:        ctx,
 		Log:        logger,
 		EsdbClient: esdbClient,
@@ -29,7 +29,7 @@ func New(ctx context.Context, logger *slog.Logger, esdbClient *esdb.Client, sqlC
 	}
 }
 
-func (h *Handler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+func (h *HttpHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case http.MethodGet:
 		h.handleGetAllUsers(res, req)
@@ -38,7 +38,7 @@ func (h *Handler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (h *Handler) handleCreateUser(res http.ResponseWriter, req *http.Request) {
+func (h *HttpHandler) handleCreateUser(res http.ResponseWriter, req *http.Request) {
 	defer req.Body.Close()
 
 	var event events.CreateUserEvent
@@ -48,11 +48,12 @@ func (h *Handler) handleCreateUser(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	appendRes, err := events.AppendCreateUserEvent(h.Ctx, h.EsdbClient, event)
+	appendRes, err := AppendCreateUserEvent(h.Ctx, h.EsdbClient, event)
 	if err != nil && errors.Is(err, esdb.ErrWrongExpectedStreamRevision) {
 		http.Error(res, "user already exists", http.StatusBadRequest)
 		return
-	} else if err != nil {
+	}
+	if err != nil {
 		h.Log.Error("appending to stream resulted in an error", "error", err)
 		res.WriteHeader(http.StatusInternalServerError)
 		return
@@ -66,7 +67,7 @@ func (h *Handler) handleCreateUser(res http.ResponseWriter, req *http.Request) {
 	res.WriteHeader(http.StatusOK)
 }
 
-func (h *Handler) handleGetAllUsers(res http.ResponseWriter, req *http.Request) {
+func (h *HttpHandler) handleGetAllUsers(res http.ResponseWriter, req *http.Request) {
 	users, err := db.GetAllUsers(h.Ctx, h.SqlClient)
 	if err != nil {
 		h.Log.Error("failed to get all users", "error", err)

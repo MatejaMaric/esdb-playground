@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/MatejaMaric/esdb-playground/db"
-	"github.com/MatejaMaric/esdb-playground/events"
 	"github.com/MatejaMaric/esdb-playground/handler"
 )
 
@@ -34,10 +33,10 @@ func main() {
 
 	srv := &http.Server{
 		Addr:    ":8080",
-		Handler: handler.New(ctx, logger, esdbClient, sqlClient),
+		Handler: handler.NewHttpHandler(ctx, logger, esdbClient, sqlClient),
 	}
 
-	eventHandler := events.NewHandler(ctx, logger, esdbClient, sqlClient)
+	eventHandler := handler.NewStreamHandler(ctx, logger, esdbClient, sqlClient)
 
 	go func() {
 		if err := eventHandler.Start(); err != nil {
