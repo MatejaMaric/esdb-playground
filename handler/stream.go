@@ -62,7 +62,7 @@ func handleStream(ctx context.Context, logger *slog.Logger, esdbClient *esdb.Cli
 	stream, err := esdbClient.SubscribeToAll(ctx, esdb.SubscribeToAllOptions{
 		Filter: &esdb.SubscriptionFilter{
 			Type:     esdb.StreamFilterType,
-			Prefixes: []string{events.UserEventsStream},
+			Prefixes: []string{string(events.UserEventsStream)},
 		},
 	})
 	if err != nil {
@@ -137,7 +137,7 @@ func AppendCreateUserEvent(ctx context.Context, esdbClient *esdb.Client, event e
 		ExpectedRevision: esdb.NoStream{},
 	}
 
-	streamName := fmt.Sprintf("%s-%s", events.UserEventsStream, event.Username)
+	streamName := events.UserEventsStream.ForUser(event.Username)
 
 	appendResult, err := esdbClient.AppendToStream(ctx, streamName, aopts, eventData)
 	if err != nil {
@@ -169,7 +169,7 @@ func AppendLoginUserEvent(ctx context.Context, esdbClient *esdb.Client, event ev
 		ExpectedRevision: esdb.StreamExists{},
 	}
 
-	streamName := fmt.Sprintf("%s-%s", events.UserEventsStream, event.Username)
+	streamName := events.UserEventsStream.ForUser(event.Username)
 
 	appendResult, err := esdbClient.AppendToStream(ctx, streamName, aopts, eventData)
 	if err != nil {

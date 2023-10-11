@@ -1,9 +1,17 @@
 package events
 
+import "fmt"
+
+type Stream string
+
 const (
-	UserEventsStream string = "user_events"
-	UserStateStream  string = "user_state"
+	UserEventsStream Stream = "user_events"
+	UserStateStream  Stream = "user_state"
 )
+
+func (s Stream) ForUser(username string) string {
+	return fmt.Sprintf("%s-%s", s, username)
+}
 
 type Event string
 

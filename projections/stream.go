@@ -48,7 +48,7 @@ func (p *streamProjection) handleCreateUserEvent(rawEvent *esdb.RecordedEvent) e
 		Version:    0,
 	}
 
-	streamName := fmt.Sprintf("%s-%s", events.UserStateStream, event.Username)
+	streamName := events.UserStateStream.ForUser(event.Username)
 
 	eventId, err := uuid.NewV4()
 	if err != nil {
@@ -85,6 +85,31 @@ func (p *streamProjection) handleCreateUserEvent(rawEvent *esdb.RecordedEvent) e
 	return nil
 }
 
-func (p *streamProjection) handleLoginUserEvent(event events.LoginUserEvent) error {
+func (p *streamProjection) handleLoginUserEvent(rawEvent *esdb.RecordedEvent) error {
+	var event events.LoginUserEvent
+	if err := json.Unmarshal(rawEvent.Data, &event); err != nil {
+		return fmt.Errorf("failed to unmarshal event: %w", err)
+	}
+
 	return nil
+}
+
+func getLatestEvent(ctx context.Context, esdbClient *esdb.Client, streamName string) (*esdb.ResolvedEvent, error) {
+	ropts := esdb.ReadStreamOptions{
+		Direction: esdb.Backwards,
+		From:      esdb.End{},
+	}
+
+	rs, err := esdbClient.ReadStream(ctx, streamName, ropts, 1)
+	if err != nil {
+		return nil, fmt.Errorf("failed reading stream %s: %w", streamName, err)
+	}
+	defer rs.Close()
+
+	receivedEvent, err := rs.Recv()
+	if err != nil {
+		return nil, fmt.Errorf("ReadStream.Recv(): %w", err)
+	}
+
+	return receivedEvent, nil
 }
