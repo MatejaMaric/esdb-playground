@@ -1,4 +1,4 @@
-module github.com/MatejaMaric/esdb-playground
+module github.com/MatejaMaric/esdb-playground/projections-playground
 
 go 1.21
 

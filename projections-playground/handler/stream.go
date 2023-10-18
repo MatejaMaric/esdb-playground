@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/EventStore/EventStore-Client-Go/esdb"
-	"github.com/MatejaMaric/esdb-playground/events"
-	"github.com/MatejaMaric/esdb-playground/projections"
+	"github.com/MatejaMaric/esdb-playground/projections-playground/events"
+	"github.com/MatejaMaric/esdb-playground/projections-playground/projections"
 	"github.com/gofrs/uuid"
 )
 

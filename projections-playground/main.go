@@ -9,8 +9,8 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/MatejaMaric/esdb-playground/db"
-	"github.com/MatejaMaric/esdb-playground/handler"
+	"github.com/MatejaMaric/esdb-playground/projections-playground/db"
+	"github.com/MatejaMaric/esdb-playground/projections-playground/handler"
 )
 
 func main() {

@@ -9,8 +9,8 @@ import (
 	"net/http"
 
 	"github.com/EventStore/EventStore-Client-Go/esdb"
-	"github.com/MatejaMaric/esdb-playground/db"
-	"github.com/MatejaMaric/esdb-playground/events"
+	"github.com/MatejaMaric/esdb-playground/projections-playground/db"
+	"github.com/MatejaMaric/esdb-playground/projections-playground/events"
 )
 
 type HttpHandler struct {
