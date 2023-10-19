@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/EventStore/EventStore-Client-Go/esdb"
+	"github.com/MatejaMaric/esdb-playground/aggregates"
 	"github.com/MatejaMaric/esdb-playground/db"
 	"github.com/MatejaMaric/esdb-playground/events"
 )
@@ -84,7 +85,14 @@ func (h *HttpHandler) handleCreateUser(res http.ResponseWriter, req *http.Reques
 func (h *HttpHandler) handleGetUsers(res http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
 	if query.Has("username") {
-		h.writeJson(res, req, map[string]string{"msg": "single user data"})
+		user, err := aggregates.NewUserAggregate(h.Ctx, h.EsdbClient, query.Get("username"))
+		if err != nil {
+			h.Log.Error("failed to aggregate user data", "error", err)
+			res.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		h.writeJson(res, req, user)
 		return
 	}
 
