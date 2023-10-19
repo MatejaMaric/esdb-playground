@@ -3,16 +3,15 @@ package handler
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/EventStore/EventStore-Client-Go/esdb"
+	"github.com/MatejaMaric/esdb-playground/db"
 	"github.com/MatejaMaric/esdb-playground/events"
 	"github.com/MatejaMaric/esdb-playground/projections"
-	"github.com/gofrs/uuid"
 )
 
 type StreamHandler struct {
@@ -116,65 +115,23 @@ func handleStream(ctx context.Context, logger *slog.Logger, esdbClient *esdb.Cli
 }
 
 func AppendCreateUserEvent(ctx context.Context, esdbClient *esdb.Client, event events.CreateUserEvent) (*esdb.WriteResult, error) {
-	eventId, err := uuid.NewV4()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create a uuid: %w", err)
-	}
-
-	data, err := json.Marshal(event)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal json: %w", err)
-	}
-
-	eventData := esdb.EventData{
-		EventID:     eventId,
-		EventType:   string(events.CreateUser),
-		ContentType: esdb.JsonContentType,
-		Data:        data,
-	}
-
-	aopts := esdb.AppendToStreamOptions{
-		ExpectedRevision: esdb.NoStream{},
-	}
-
-	streamName := events.UserEventsStream.ForUser(event.Username)
-
-	appendResult, err := esdbClient.AppendToStream(ctx, streamName, aopts, eventData)
-	if err != nil {
-		return nil, fmt.Errorf("failed to append to stream: %w", err)
-	}
-
-	return appendResult, nil
+	return db.AppendEvent(
+		ctx,
+		esdbClient,
+		events.UserEventsStream.ForUser(event.Username),
+		string(events.CreateUser),
+		event,
+		esdb.NoStream{},
+	)
 }
 
 func AppendLoginUserEvent(ctx context.Context, esdbClient *esdb.Client, event events.LoginUserEvent) (*esdb.WriteResult, error) {
-	eventId, err := uuid.NewV4()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create a uuid: %w", err)
-	}
-
-	data, err := json.Marshal(event)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal json: %w", err)
-	}
-
-	eventData := esdb.EventData{
-		EventID:     eventId,
-		EventType:   string(events.LoginUser),
-		ContentType: esdb.JsonContentType,
-		Data:        data,
-	}
-
-	aopts := esdb.AppendToStreamOptions{
-		ExpectedRevision: esdb.StreamExists{},
-	}
-
-	streamName := events.UserEventsStream.ForUser(event.Username)
-
-	appendResult, err := esdbClient.AppendToStream(ctx, streamName, aopts, eventData)
-	if err != nil {
-		return nil, fmt.Errorf("failed to append to stream: %w", err)
-	}
-
-	return appendResult, nil
+	return db.AppendEvent(
+		ctx,
+		esdbClient,
+		events.UserEventsStream.ForUser(event.Username),
+		string(events.LoginUser),
+		event,
+		esdb.StreamExists{},
+	)
 }

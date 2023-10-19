@@ -32,11 +32,23 @@ func NewHttpHandler(ctx context.Context, logger *slog.Logger, esdbClient *esdb.C
 func (h *HttpHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case http.MethodGet:
-		h.handleGetAllUsers(res, req)
+		h.handleGetUsers(res, req)
 	case http.MethodPost:
 		h.handleCreateUser(res, req)
 	case http.MethodPatch:
 		h.handleUserLogin(res, req)
+	}
+}
+
+func (h *HttpHandler) writeJson(res http.ResponseWriter, req *http.Request, data any) {
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		h.Log.Error("json encoding failed", "error", err)
+		http.Error(res, "json encoding failed", http.StatusInternalServerError)
+	}
+
+	if _, err := res.Write(jsonData); err != nil {
+		h.Log.Warn("writing to http response writer returned an error", "error", err)
 	}
 }
 
@@ -69,7 +81,13 @@ func (h *HttpHandler) handleCreateUser(res http.ResponseWriter, req *http.Reques
 	res.WriteHeader(http.StatusOK)
 }
 
-func (h *HttpHandler) handleGetAllUsers(res http.ResponseWriter, req *http.Request) {
+func (h *HttpHandler) handleGetUsers(res http.ResponseWriter, req *http.Request) {
+	query := req.URL.Query()
+	if query.Has("username") {
+		h.writeJson(res, req, map[string]string{"msg": "single user data"})
+		return
+	}
+
 	users, err := db.GetAllUsers(h.Ctx, h.SqlClient)
 	if err != nil {
 		h.Log.Error("failed to get all users", "error", err)
@@ -77,12 +95,7 @@ func (h *HttpHandler) handleGetAllUsers(res http.ResponseWriter, req *http.Reque
 		return
 	}
 
-	encoder := json.NewEncoder(res)
-	if err := encoder.Encode(users); err != nil {
-		h.Log.Error("failed to encode users to json", "error", err)
-		res.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	h.writeJson(res, req, users)
 }
 
 func (h *HttpHandler) handleUserLogin(res http.ResponseWriter, req *http.Request) {
