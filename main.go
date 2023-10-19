@@ -31,6 +31,13 @@ func main() {
 	}
 	logger.Info("successfully connected to MariaDB instance")
 
+	_, err = db.ConnectToRedis()
+	if err != nil {
+		logger.Error("failed to connect to Redis instance", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("successfully connected to Redis instance")
+
 	srv := &http.Server{
 		Addr:    ":8080",
 		Handler: handler.NewHttpHandler(ctx, logger, esdbClient, sqlClient),

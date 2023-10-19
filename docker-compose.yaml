@@ -1,6 +1,7 @@
 version: "3.4"
 
 services:
+
   eventstore.db:
     image: eventstore/eventstore:22.10.3-alpha-arm64v8
 #   image: eventstore/eventstore:22.10.3-buster-slim
@@ -23,6 +24,7 @@ services:
       - type: volume
         source: eventstore-volume-logs
         target: /var/log/eventstore
+
   mariadb:
     image: mariadb:11.0.3-jammy
     environment:
@@ -40,7 +42,17 @@ services:
         source: ./initdb.d
         target: /docker-entrypoint-initdb.d
 
+  redis:
+    image: redis:7.2-alpine3.18
+    ports:
+      - "6379:6379"
+    volumes:
+      - type: volume
+        source: redis-volume-data
+        target: /data
+
 volumes:
   eventstore-volume-data:
   eventstore-volume-logs:
   mariadb-volume-data:
+  redis-volume-data:
