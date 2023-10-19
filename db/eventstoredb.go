@@ -46,7 +46,7 @@ func AppendEvent(
 	}
 
 	aopts := esdb.AppendToStreamOptions{
-		ExpectedRevision: esdb.NoStream{},
+		ExpectedRevision: expectedRevision,
 	}
 
 	appendResult, err := esdbClient.AppendToStream(ctx, streamName, aopts, esdbEvent)
