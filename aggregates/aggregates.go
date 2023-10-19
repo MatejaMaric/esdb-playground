@@ -51,7 +51,7 @@ func NewUserAggregate(ctx context.Context, esdbClient *esdb.Client, username str
 
 		user, err = user.Apply(event.Event.EventType, event.Event.Data, event.Event.EventNumber)
 		if err != nil {
-			return user, fmt.Errorf("applying the event(%v,%v) returned an error: %w", event.Event.EventType, event.Event.Data, err)
+			return user, fmt.Errorf("applying the event returned an error: %w", err)
 		}
 	}
 
