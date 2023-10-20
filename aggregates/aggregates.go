@@ -49,7 +49,7 @@ func NewUserAggregate(ctx context.Context, esdbClient *esdb.Client, username str
 			return user, fmt.Errorf("event is nil!")
 		}
 
-		user, err = user.Apply(event.Event.EventType, event.Event.Data, event.Event.EventNumber)
+		user, err = user.Apply(event.Event)
 		if err != nil {
 			return user, fmt.Errorf("applying the event returned an error: %w", err)
 		}
@@ -58,25 +58,25 @@ func NewUserAggregate(ctx context.Context, esdbClient *esdb.Client, username str
 	return user, nil
 }
 
-func (ua UserAggregate) Apply(eventType string, eventData []byte, eventNumber uint64) (UserAggregate, error) {
+func (ua UserAggregate) Apply(event *esdb.RecordedEvent) (UserAggregate, error) {
 	var expectedVersion uint64
-	if eventNumber == 0 {
+	if event.EventNumber == 0 {
 		expectedVersion = 0
 	} else {
-		expectedVersion = eventNumber - 1
+		expectedVersion = event.EventNumber - 1
 	}
 
 	if ua.Version != expectedVersion {
-		return ua, fmt.Errorf("unexpected Event Number %v, wanted %v", eventNumber, ua.Version+1)
+		return ua, fmt.Errorf("unexpected Event Number %v, wanted %v", event.EventNumber, ua.Version+1)
 	}
 
-	switch eventType {
+	switch event.EventType {
 	case string(events.CreateUser):
-		return ua.applyCreateUser(eventData)
+		return ua.applyCreateUser(event.Data)
 	case string(events.LoginUser):
-		return ua.applyLoginUser(eventData)
+		return ua.applyLoginUser(event.Data)
 	default:
-		return ua, fmt.Errorf("unknown event type: %v", eventType)
+		return ua, fmt.Errorf("unknown event type: %v", event.EventType)
 	}
 }
 
