@@ -3,12 +3,10 @@ package aggregates
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
-	"math"
 
 	"github.com/EventStore/EventStore-Client-Go/esdb"
+	"github.com/MatejaMaric/esdb-playground/db"
 	"github.com/MatejaMaric/esdb-playground/events"
 )
 
@@ -19,44 +17,14 @@ type UserAggregate struct {
 	Version    uint64 `json:"version"`
 }
 
-func NewUserAggregate(ctx context.Context, esdbClient *esdb.Client, username string) (UserAggregate, error) {
+func NewUserAggregate(ctx context.Context, esdbClient *esdb.Client, username string) (*UserAggregate, error) {
 	streamName := events.UserEventsStream.ForUser(username)
 
-	ropts := esdb.ReadStreamOptions{
-		From:      esdb.Start{},
-		Direction: esdb.Forwards,
+	fold := func(ua UserAggregate, re *esdb.RecordedEvent) (UserAggregate, error) {
+		return ua.Apply(re)
 	}
 
-	stream, err := esdbClient.ReadStream(ctx, streamName, ropts, math.MaxUint64)
-	if err != nil {
-		return UserAggregate{}, fmt.Errorf("failed to read the stream '%s': %w", streamName, err)
-	}
-	defer stream.Close()
-
-	user := UserAggregate{}
-
-	for {
-		event, err := stream.Recv()
-
-		if errors.Is(err, io.EOF) {
-			break
-		}
-
-		if err != nil {
-			return user, fmt.Errorf("error while reading events from the stream %s: %w", streamName, err)
-		}
-
-		if event.Event == nil {
-			return user, fmt.Errorf("event is nil!")
-		}
-
-		user, err = user.Apply(event.Event)
-		if err != nil {
-			return user, fmt.Errorf("applying the event returned an error: %w", err)
-		}
-	}
-
-	return user, nil
+	return db.AggregateStream[UserAggregate](ctx, esdbClient, streamName, fold)
 }
 
 func (ua UserAggregate) Apply(event *esdb.RecordedEvent) (UserAggregate, error) {
