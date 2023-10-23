@@ -44,6 +44,7 @@ func (p *streamProjection) handleCreateUserEvent(rawEvent *esdb.RecordedEvent) e
 
 	user := events.UserStateEvent{
 		Username:   event.Username,
+		Email:      event.Email,
 		LoginCount: 0,
 		Version:    0,
 	}

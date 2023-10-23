@@ -23,12 +23,14 @@ const (
 
 type UserStateEvent struct {
 	Username   string `json:"username"`
+	Email      string `json:"email"`
 	LoginCount int32  `json:"login_count"`
 	Version    uint64 `json:"version"`
 }
 
 type CreateUserEvent struct {
 	Username string `json:"username"`
+	Email    string `json:"email"`
 }
 
 type LoginUserEvent struct {

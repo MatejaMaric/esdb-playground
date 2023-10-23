@@ -47,6 +47,7 @@ func (p *dbProjection) handleCreateUserEvent(rawEvent *esdb.RecordedEvent) error
 
 	user := events.UserStateEvent{
 		Username:   event.Username,
+		Email:      event.Email,
 		LoginCount: 0,
 		Version:    rawEvent.EventNumber,
 	}

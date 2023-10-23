@@ -14,6 +14,7 @@ import (
 
 type UserAggregate struct {
 	Username   string `json:"username"`
+	Email      string `json:"email"`
 	LoginCount int32  `json:"login_count"`
 	Version    uint64 `json:"version"`
 }
@@ -88,6 +89,7 @@ func (ua UserAggregate) applyCreateUser(eventData []byte) (UserAggregate, error)
 
 	return UserAggregate{
 		Username:   event.Username,
+		Email:      event.Email,
 		LoginCount: 0,
 		Version:    0,
 	}, nil
@@ -101,6 +103,7 @@ func (ua UserAggregate) applyLoginUser(eventData []byte) (UserAggregate, error) 
 
 	return UserAggregate{
 		Username:   ua.Username,
+		Email:      ua.Email,
 		LoginCount: ua.LoginCount + 1,
 		Version:    ua.Version + 1,
 	}, nil
