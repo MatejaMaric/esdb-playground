@@ -18,6 +18,35 @@ var (
 	TestEsdbClient *esdb.Client
 )
 
+type spawnFunc func(pool *dockertest.Pool) (*dockertest.Resource, func() error, error)
+
+func createResources(pool *dockertest.Pool, resourceFuncs map[string]spawnFunc) []*dockertest.Resource {
+	var resources []*dockertest.Resource
+
+	for name, spawn := range resourceFuncs {
+		resource, retry, err := spawn(pool)
+		if err != nil {
+			log.Fatalf("could not start %s: %v", name, err)
+		}
+
+		if err := pool.Retry(retry); err != nil {
+			log.Fatalf("could not connect to %s: %v", name, err)
+		}
+
+		resources = append(resources, resource)
+	}
+
+	return resources
+}
+
+func purgeResources(pool *dockertest.Pool, resources []*dockertest.Resource) {
+	for _, resource := range resources {
+		if err := pool.Purge(resource); err != nil {
+			log.Fatalf("Could not purge resource: %s", err)
+		}
+	}
+}
+
 func spawnTestMariaDB(pool *dockertest.Pool) (*dockertest.Resource, func() error, error) {
 	ropts := dockertest.RunOptions{
 		Repository: "mariadb",
@@ -102,34 +131,15 @@ func TestMain(m *testing.M) {
 		log.Fatalf("Could not connect to Docker: %s", err)
 	}
 
-	// dbResource, dbRetryFunc, err := spawnTestMariaDB(pool)
-	// if err != nil {
-	// 	log.Fatalf("could not start MariaDB: %s", err)
-	// }
-
-	esdbResource, esdbRetryFunc, err := spawnTestEventStoreDB(pool)
-	if err != nil {
-		log.Fatalf("could not start EventStoreDB: %s", err)
-	}
-
-	// if err := pool.Retry(dbRetryFunc); err != nil {
-	// 	log.Fatalf("Could not connect to MariaDB: %s", err)
-	// }
-
-	if err := pool.Retry(esdbRetryFunc); err != nil {
-		log.Fatalf("Could not connect to EventStoreDB: %s", err)
-	}
+	resources := createResources(pool, map[string]spawnFunc{
+		"EventStoreDB": spawnTestEventStoreDB,
+		// "MariaDB":      spawnTestMariaDB,
+	})
 
 	code := m.Run()
 
 	// You can't defer this because os.Exit doesn't care for defer
-	// if err := pool.Purge(dbResource); err != nil {
-	// 	log.Fatalf("Could not purge resource: %s", err)
-	// }
-
-	if err := pool.Purge(esdbResource); err != nil {
-		log.Fatalf("Could not purge resource: %s", err)
-	}
+	purgeResources(pool, resources)
 
 	os.Exit(code)
 }
