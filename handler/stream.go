@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"log/slog"
 	"time"
 
@@ -58,60 +57,39 @@ func (h *StreamHandler) Stop(timeout time.Duration) error {
 }
 
 func handleStream(ctx context.Context, logger *slog.Logger, esdbClient *esdb.Client, sqlClient *sql.DB) error {
-	stream, err := esdbClient.SubscribeToAll(ctx, esdb.SubscribeToAllOptions{
+	opts := esdb.SubscribeToAllOptions{
 		Filter: &esdb.SubscriptionFilter{
 			Type:     esdb.StreamFilterType,
 			Prefixes: []string{string(events.UserEventsStream)},
 		},
-	})
-	if err != nil {
-		return fmt.Errorf("failed to subscribe to stream: %w", err)
 	}
-	defer func() {
-		if err := stream.Close(); err != nil {
-			logger.Error("closing the stream resulted in an error", "error", err)
-		} else {
-			logger.Debug("stream successfully closed")
-		}
-	}()
 
 	dbProjection := projections.NewDatabaseProjection(ctx, sqlClient)
 	streamProjection := projections.NewStreamProjection(ctx, esdbClient)
 
-	for {
-		subEvent := stream.Recv()
-
-		if subEvent.EventAppeared != nil {
-
-			if err := dbProjection.HandleEvent(subEvent.EventAppeared); err != nil {
-				logger.Error("database projection event handler returned an error", "error", err)
-			} else {
-				logger.Debug("database projection handled event",
-					"EventNumber", subEvent.EventAppeared.Event.EventNumber,
-					"CommitPosition", subEvent.EventAppeared.Event.Position.Commit,
-					"PreparePosition", subEvent.EventAppeared.Event.Position.Prepare,
-				)
-			}
-
-			if err := streamProjection.HandleEvent(subEvent.EventAppeared); err != nil {
-				logger.Error("stream projection event handler returned an error", "error", err)
-			} else {
-				logger.Debug("stream projection handled event",
-					"EventNumber", subEvent.EventAppeared.Event.EventNumber,
-					"CommitPosition", subEvent.EventAppeared.Event.Position.Commit,
-					"PreparePosition", subEvent.EventAppeared.Event.Position.Prepare,
-				)
-			}
-
+	handleFunc := func(event esdb.RecordedEvent) {
+		if err := dbProjection.HandleEvent(event); err != nil {
+			logger.Error("database projection event handler returned an error", "error", err)
+		} else {
+			logger.Debug("database projection handled event",
+				"EventNumber", event.EventNumber,
+				"CommitPosition", event.Position.Commit,
+				"PreparePosition", event.Position.Prepare,
+			)
 		}
 
-		if subEvent.SubscriptionDropped != nil {
-			logger.Info("subscription dropped", "error", subEvent.SubscriptionDropped.Error)
-			break
+		if err := streamProjection.HandleEvent(event); err != nil {
+			logger.Error("stream projection event handler returned an error", "error", err)
+		} else {
+			logger.Debug("stream projection handled event",
+				"EventNumber", event.EventNumber,
+				"CommitPosition", event.Position.Commit,
+				"PreparePosition", event.Position.Prepare,
+			)
 		}
 	}
 
-	return nil
+	return db.HandleAllStream(ctx, esdbClient, opts, handleFunc)
 }
 
 func AppendCreateUserEvent(ctx context.Context, esdbClient *esdb.Client, event events.CreateUserEvent) (*esdb.WriteResult, error) {

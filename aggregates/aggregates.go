@@ -20,14 +20,14 @@ type UserAggregate struct {
 func NewUserAggregate(ctx context.Context, esdbClient *esdb.Client, username string) (*UserAggregate, error) {
 	streamName := events.UserEventsStream.ForUser(username)
 
-	fold := func(ua UserAggregate, re *esdb.RecordedEvent) (UserAggregate, error) {
+	fold := func(ua UserAggregate, re esdb.RecordedEvent) (UserAggregate, error) {
 		return ua.Apply(re)
 	}
 
 	return db.AggregateStream[UserAggregate](ctx, esdbClient, streamName, fold)
 }
 
-func (ua UserAggregate) Apply(event *esdb.RecordedEvent) (UserAggregate, error) {
+func (ua UserAggregate) Apply(event esdb.RecordedEvent) (UserAggregate, error) {
 	var expectedVersion uint64
 	if event.EventNumber == 0 {
 		expectedVersion = 0

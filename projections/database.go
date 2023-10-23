@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/EventStore/EventStore-Client-Go/esdb"
@@ -24,22 +23,18 @@ func NewDatabaseProjection(ctx context.Context, sqlClient *sql.DB) Projection {
 	}
 }
 
-func (p *dbProjection) HandleEvent(resolved *esdb.ResolvedEvent) error {
-	if resolved.Event == nil {
-		return errors.New("resolved.Event is nil")
-	}
-
-	switch resolved.Event.EventType {
+func (p *dbProjection) HandleEvent(event esdb.RecordedEvent) error {
+	switch event.EventType {
 	case string(events.CreateUser):
-		return p.handleCreateUserEvent(resolved.Event)
+		return p.handleCreateUserEvent(event)
 	case string(events.LoginUser):
-		return p.handleLoginUserEvent(resolved.Event)
+		return p.handleLoginUserEvent(event)
 	default:
-		return fmt.Errorf("unknown event type: %s", resolved.Event.EventType)
+		return fmt.Errorf("unknown event type: %s", event.EventType)
 	}
 }
 
-func (p *dbProjection) handleCreateUserEvent(rawEvent *esdb.RecordedEvent) error {
+func (p *dbProjection) handleCreateUserEvent(rawEvent esdb.RecordedEvent) error {
 	var event events.CreateUserEvent
 	if err := json.Unmarshal(rawEvent.Data, &event); err != nil {
 		return fmt.Errorf("failed to unmarshal event: %w", err)
@@ -59,7 +54,7 @@ func (p *dbProjection) handleCreateUserEvent(rawEvent *esdb.RecordedEvent) error
 	return nil
 }
 
-func (p *dbProjection) handleLoginUserEvent(rawEvent *esdb.RecordedEvent) error {
+func (p *dbProjection) handleLoginUserEvent(rawEvent esdb.RecordedEvent) error {
 	var event events.LoginUserEvent
 	if err := json.Unmarshal(rawEvent.Data, &event); err != nil {
 		return fmt.Errorf("failed to unmarshal event: %w", err)
