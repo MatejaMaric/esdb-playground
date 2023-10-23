@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -11,11 +12,13 @@ import (
 	"github.com/EventStore/EventStore-Client-Go/esdb"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/ory/dockertest/v3"
+	"github.com/redis/go-redis/v9"
 )
 
 var (
-	TestDb         *sql.DB
-	TestEsdbClient *esdb.Client
+	TestDb          *sql.DB
+	TestEsdbClient  *esdb.Client
+	TestRedisClient *redis.Client
 )
 
 type spawnFunc func(pool *dockertest.Pool) (*dockertest.Resource, func() error, error)
@@ -120,6 +123,27 @@ func spawnTestEventStoreDB(pool *dockertest.Pool) (*dockertest.Resource, func() 
 	return resource, retryFunc, nil
 }
 
+func spawnTestRedis(pool *dockertest.Pool) (*dockertest.Resource, func() error, error) {
+	ropts := dockertest.RunOptions{
+		Repository: "redis",
+		Tag:        "7.2-alpine3.18",
+	}
+
+	resource, err := pool.RunWithOptions(&ropts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	retryFunc := func() error {
+		TestRedisClient = redis.NewClient(&redis.Options{
+			Addr: fmt.Sprintf("localhost:%s", resource.GetPort("6379/tcp")),
+		})
+		return TestRedisClient.Ping(context.Background()).Err()
+	}
+
+	return resource, retryFunc, nil
+}
+
 func TestMain(m *testing.M) {
 	pool, err := dockertest.NewPool("")
 	if err != nil {
@@ -134,6 +158,7 @@ func TestMain(m *testing.M) {
 	resources := createResources(pool, map[string]spawnFunc{
 		"EventStoreDB": spawnTestEventStoreDB,
 		// "MariaDB":      spawnTestMariaDB,
+		// "Redis":        spawnTestRedis,
 	})
 
 	code := m.Run()
