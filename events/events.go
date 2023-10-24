@@ -5,8 +5,9 @@ import "fmt"
 type Stream string
 
 const (
-	UserEventsStream Stream = "user_events"
-	UserStateStream  Stream = "user_state"
+	UserEventsStream  Stream = "user_events"
+	UserStateStream   Stream = "user_state"
+	ReservationStream Stream = "reservations"
 )
 
 func (s Stream) ForUser(username string) string {
@@ -16,9 +17,10 @@ func (s Stream) ForUser(username string) string {
 type Event string
 
 const (
-	UserState  Event = "UserState"
-	CreateUser Event = "CreateUser"
-	LoginUser  Event = "LoginUser"
+	UserState    Event = "UserState"
+	CreateUser   Event = "CreateUser"
+	LoginUser    Event = "LoginUser"
+	ReserveEmail Event = "ReserveEmail"
 )
 
 type UserStateEvent struct {
