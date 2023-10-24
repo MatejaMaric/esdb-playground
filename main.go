@@ -11,6 +11,7 @@ import (
 
 	"github.com/MatejaMaric/esdb-playground/db"
 	"github.com/MatejaMaric/esdb-playground/handler"
+	"github.com/MatejaMaric/esdb-playground/utils"
 )
 
 func main() {
@@ -43,7 +44,9 @@ func main() {
 		Handler: handler.NewHttpHandler(ctx, logger, esdbClient, sqlClient),
 	}
 
-	eventHandler := handler.NewStreamHandler(ctx, logger, esdbClient, sqlClient)
+	eventHandler := utils.NewStartStop(ctx, func(stoppableCtx context.Context) error {
+		return handler.HandleUserStream(stoppableCtx, logger, esdbClient, sqlClient)
+	})
 
 	go func() {
 		if err := eventHandler.Start(); err != nil {

@@ -3,9 +3,7 @@ package handler
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"log/slog"
-	"time"
 
 	"github.com/EventStore/EventStore-Client-Go/esdb"
 	"github.com/MatejaMaric/esdb-playground/db"
@@ -13,50 +11,7 @@ import (
 	"github.com/MatejaMaric/esdb-playground/projections"
 )
 
-type StreamHandler struct {
-	ctx        context.Context
-	cancel     context.CancelFunc
-	doneCh     chan struct{}
-	logger     *slog.Logger
-	esdbClient *esdb.Client
-	sqlClient  *sql.DB
-}
-
-func NewStreamHandler(ctx context.Context, logger *slog.Logger, esdbClient *esdb.Client, sqlClient *sql.DB) *StreamHandler {
-	handlerCtx, cancel := context.WithCancel(ctx)
-
-	return &StreamHandler{
-		ctx:        handlerCtx,
-		cancel:     cancel,
-		doneCh:     make(chan struct{}),
-		logger:     logger,
-		esdbClient: esdbClient,
-		sqlClient:  sqlClient,
-	}
-}
-
-func (h *StreamHandler) Start() error {
-	defer func() {
-		h.doneCh <- struct{}{}
-	}()
-	return handleStream(h.ctx, h.logger, h.esdbClient, h.sqlClient)
-}
-
-func (h *StreamHandler) Stop(timeout time.Duration) error {
-	h.cancel()
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	select {
-	case <-ctx.Done():
-		return errors.New("failed to finished within timeout")
-	case <-h.doneCh:
-		return nil
-	}
-}
-
-func handleStream(ctx context.Context, logger *slog.Logger, esdbClient *esdb.Client, sqlClient *sql.DB) error {
+func HandleUserStream(ctx context.Context, logger *slog.Logger, esdbClient *esdb.Client, sqlClient *sql.DB) error {
 	opts := esdb.SubscribeToAllOptions{
 		Filter: &esdb.SubscriptionFilter{
 			Type:     esdb.StreamFilterType,
