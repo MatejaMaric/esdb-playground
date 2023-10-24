@@ -2,6 +2,7 @@ package reservation
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -50,7 +51,7 @@ func SaveReservation(ctx context.Context, esdbClient *esdb.Client, reservation R
 /*
 Set reservation to never expire inside Redis.
 */
-func PresistReservation(ctx context.Context, redisClient *redis.Client, reservation Reservation) (Reservation, error) {
+func PersistReservation(ctx context.Context, redisClient *redis.Client, reservation Reservation) (Reservation, error) {
 	const redisLuaScript string = `if redis.call('GET',KEYS[1]) == ARGV[1]
 then
     return redis.call('SET',KEYS[1],'persisted')
@@ -67,4 +68,17 @@ end`
 		Key:         reservation.Key,
 		AccessToken: "persisted",
 	}, nil
+}
+
+func RepopulateRedis(ctx context.Context, esdbClient *esdb.Client, redisClient *redis.Client) error {
+	handler := func(event esdb.RecordedEvent) error {
+		var reservation Reservation
+		if err := json.Unmarshal(event.Data, &reservation); err != nil {
+			return fmt.Errorf("failed to unmarshal the reservation: %w", err)
+		}
+
+		_, err := PersistReservation(ctx, redisClient, reservation)
+		return err
+	}
+	return db.HandleReadStream(ctx, esdbClient, string(events.ReservationStream), handler)
 }

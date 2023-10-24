@@ -23,7 +23,7 @@ func TestReservationLogic(t *testing.T) {
 
 	CheckTTL(t, ctx, TestRedisClient, res.Key)
 
-	res, err = reservation.PresistReservation(ctx, TestRedisClient, res)
+	res, err = reservation.PersistReservation(ctx, TestRedisClient, res)
 	if err != nil {
 		t.Fatal(err)
 	}
