@@ -17,14 +17,22 @@ type UserAggregate struct {
 	Version    uint64 `json:"version"`
 }
 
-func NewUserAggregate(ctx context.Context, esdbClient *esdb.Client, username string) (*UserAggregate, error) {
+func NewUserAggregate(ctx context.Context, esdbClient *esdb.Client, username string) (UserAggregate, error) {
 	streamName := events.UserEventsStream.ForUser(username)
 
-	fold := func(ua UserAggregate, re esdb.RecordedEvent) (UserAggregate, error) {
-		return ua.Apply(re)
+	user := UserAggregate{}
+	var err error
+
+	handler := func(re esdb.RecordedEvent) error {
+		user, err = user.Apply(re)
+		return err
 	}
 
-	return db.AggregateStream[UserAggregate](ctx, esdbClient, streamName, fold)
+	if err := db.HandleReadStream(ctx, esdbClient, streamName, handler); err != nil {
+		return user, err
+	}
+
+	return user, nil
 }
 
 func (ua UserAggregate) Apply(event esdb.RecordedEvent) (UserAggregate, error) {

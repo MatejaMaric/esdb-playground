@@ -60,9 +60,7 @@ func AppendEvent(
 	return appendResult, nil
 }
 
-type AggregateFunc[T any] func(T, esdb.RecordedEvent) (T, error)
-
-func AggregateStream[T any](ctx context.Context, esdbClient *esdb.Client, streamName string, fold AggregateFunc[T]) (*T, error) {
+func HandleReadStream(ctx context.Context, esdbClient *esdb.Client, streamName string, handler func(esdb.RecordedEvent) error) error {
 	ropts := esdb.ReadStreamOptions{
 		From:      esdb.Start{},
 		Direction: esdb.Forwards,
@@ -70,11 +68,9 @@ func AggregateStream[T any](ctx context.Context, esdbClient *esdb.Client, stream
 
 	stream, err := esdbClient.ReadStream(ctx, streamName, ropts, math.MaxUint64)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read the stream '%s': %w", streamName, err)
+		return fmt.Errorf("failed to read the stream '%s': %w", streamName, err)
 	}
 	defer stream.Close()
-
-	var user T
 
 	for {
 		resolved, err := stream.Recv()
@@ -84,20 +80,20 @@ func AggregateStream[T any](ctx context.Context, esdbClient *esdb.Client, stream
 		}
 
 		if err != nil {
-			return &user, fmt.Errorf("error while reading events from the stream %s: %w", streamName, err)
+			return fmt.Errorf("error while reading events from the stream %s: %w", streamName, err)
 		}
 
 		if resolved.Event == nil {
-			return &user, fmt.Errorf("event is nil!")
+			return fmt.Errorf("event is nil!")
 		}
 
-		user, err = fold(user, *resolved.Event)
+		err = handler(*resolved.Event)
 		if err != nil {
-			return &user, fmt.Errorf("applying the event returned an error: %w", err)
+			return fmt.Errorf("the event handler returned an error: %w", err)
 		}
 	}
 
-	return &user, nil
+	return nil
 }
 
 func HandleAllStream(ctx context.Context, esdbClient *esdb.Client, opts esdb.SubscribeToAllOptions, handleFunc func(esdb.RecordedEvent)) error {
