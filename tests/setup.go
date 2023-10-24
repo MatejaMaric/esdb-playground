@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/EventStore/EventStore-Client-Go/esdb"
 	"github.com/ory/dockertest/v3"
@@ -142,7 +143,7 @@ func SpawnTestRedis(pool *dockertest.Pool) (*dockertest.Resource, func() error, 
 	return resource, retryFunc, nil
 }
 
-func CheckTTL(t *testing.T, ctx context.Context, redisClient *redis.Client, key string) {
+func CheckTTL(t *testing.T, ctx context.Context, redisClient *redis.Client, key string) time.Duration {
 	ttlCmd := TestRedisClient.TTL(ctx, key)
 	if err := ttlCmd.Err(); err != nil {
 		t.Fatal(err)
@@ -158,4 +159,6 @@ func CheckTTL(t *testing.T, ctx context.Context, redisClient *redis.Client, key 
 	default:
 		t.Logf("TTL: %s", ttl)
 	}
+
+	return ttl
 }

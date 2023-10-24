@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/MatejaMaric/esdb-playground/reservation"
+	"github.com/redis/go-redis/v9"
 )
 
 func TestReservationLogic(t *testing.T) {
@@ -27,5 +28,17 @@ func TestReservationLogic(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	CheckTTL(t, ctx, TestRedisClient, res.Key)
+	ttl := CheckTTL(t, ctx, TestRedisClient, res.Key)
+	if ttl != -1 {
+		t.Fatal("persisted reservation should not have an expiration (TTL)")
+	}
+
+	var getCmd *redis.StringCmd = TestRedisClient.Get(ctx, res.Key)
+	if err := getCmd.Err(); err != nil {
+		t.Log(err)
+	}
+
+	if getCmd.Val() != "persisted" {
+		t.Fatalf("unexpected token: %s", getCmd.Val())
+	}
 }
