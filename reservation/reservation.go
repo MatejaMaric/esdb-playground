@@ -1,12 +1,12 @@
 package reservation
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/redis/go-redis/v9"
-	"golang.org/x/net/context"
 )
 
 const Timeout time.Duration = 3 * time.Second
