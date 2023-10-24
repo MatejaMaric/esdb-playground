@@ -96,12 +96,41 @@ func HandleReadStream(ctx context.Context, esdbClient *esdb.Client, streamName s
 	return nil
 }
 
-func HandleAllStream(ctx context.Context, esdbClient *esdb.Client, opts esdb.SubscribeToAllOptions, handleFunc func(esdb.RecordedEvent)) error {
+func HandleAllStream(ctx context.Context, esdbClient *esdb.Client, opts esdb.SubscribeToAllOptions, handler func(esdb.RecordedEvent) error) error {
 	stream, err := esdbClient.SubscribeToAll(ctx, opts)
 	if err != nil {
 		return fmt.Errorf("failed to subscribe to stream: %w", err)
 	}
 
+	if err := HandleSubscription(stream, handler); err != nil {
+		return err
+	}
+
+	if err := stream.Close(); err != nil {
+		return fmt.Errorf("closing the stream resulted in an error: %w", err)
+	}
+
+	return nil
+}
+
+func HandleStream(ctx context.Context, esdbClient *esdb.Client, streamName string, handler func(esdb.RecordedEvent) error) error {
+	stream, err := esdbClient.SubscribeToStream(ctx, streamName, esdb.SubscribeToStreamOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to subscribe to stream %s: %w", streamName, err)
+	}
+
+	if err := HandleSubscription(stream, handler); err != nil {
+		return err
+	}
+
+	if err := stream.Close(); err != nil {
+		return fmt.Errorf("closing the stream resulted in an error: %w", err)
+	}
+
+	return nil
+}
+
+func HandleSubscription(stream *esdb.Subscription, handler func(esdb.RecordedEvent) error) error {
 	for {
 		var subEvent *esdb.SubscriptionEvent = stream.Recv()
 
@@ -112,17 +141,13 @@ func HandleAllStream(ctx context.Context, esdbClient *esdb.Client, opts esdb.Sub
 				return fmt.Errorf("event at commit %v is nil", resolved.Commit)
 			}
 
-			handleFunc(*resolved.Event)
+			if err := handler(*resolved.Event); err != nil {
+				return err
+			}
 		}
 
 		if subEvent.SubscriptionDropped != nil {
-			break
+			return nil
 		}
 	}
-
-	if err := stream.Close(); err != nil {
-		return fmt.Errorf("closing the stream resulted in an error: %w", err)
-	}
-
-	return nil
 }

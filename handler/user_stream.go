@@ -22,7 +22,7 @@ func HandleUserStream(ctx context.Context, logger *slog.Logger, esdbClient *esdb
 	dbProjection := projections.NewDatabaseProjection(ctx, sqlClient)
 	streamProjection := projections.NewStreamProjection(ctx, esdbClient)
 
-	handleFunc := func(event esdb.RecordedEvent) {
+	handler := func(event esdb.RecordedEvent) error {
 		if err := dbProjection.HandleEvent(event); err != nil {
 			logger.Error("database projection event handler returned an error", "error", err)
 		} else {
@@ -42,9 +42,11 @@ func HandleUserStream(ctx context.Context, logger *slog.Logger, esdbClient *esdb
 				"PreparePosition", event.Position.Prepare,
 			)
 		}
+
+		return nil
 	}
 
-	return db.HandleAllStream(ctx, esdbClient, opts, handleFunc)
+	return db.HandleAllStream(ctx, esdbClient, opts, handler)
 }
 
 func AppendCreateUserEvent(ctx context.Context, esdbClient *esdb.Client, event events.CreateUserEvent) (*esdb.WriteResult, error) {
