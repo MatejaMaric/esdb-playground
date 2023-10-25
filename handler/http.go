@@ -12,21 +12,25 @@ import (
 	"github.com/MatejaMaric/esdb-playground/aggregates"
 	"github.com/MatejaMaric/esdb-playground/db"
 	"github.com/MatejaMaric/esdb-playground/events"
+	"github.com/MatejaMaric/esdb-playground/reservation"
+	"github.com/redis/go-redis/v9"
 )
 
 type HttpHandler struct {
-	Ctx        context.Context
-	Log        *slog.Logger
-	EsdbClient *esdb.Client
-	SqlClient  *sql.DB
+	Ctx         context.Context
+	Log         *slog.Logger
+	EsdbClient  *esdb.Client
+	SqlClient   *sql.DB
+	RedisClient *redis.Client
 }
 
-func NewHttpHandler(ctx context.Context, logger *slog.Logger, esdbClient *esdb.Client, sqlClient *sql.DB) *HttpHandler {
+func NewHttpHandler(ctx context.Context, logger *slog.Logger, esdbClient *esdb.Client, sqlClient *sql.DB, redisClient *redis.Client) *HttpHandler {
 	return &HttpHandler{
-		Ctx:        ctx,
-		Log:        logger,
-		EsdbClient: esdbClient,
-		SqlClient:  sqlClient,
+		Ctx:         ctx,
+		Log:         logger,
+		EsdbClient:  esdbClient,
+		SqlClient:   sqlClient,
+		RedisClient: redisClient,
 	}
 }
 
@@ -60,6 +64,18 @@ func (h *HttpHandler) handleCreateUser(res http.ResponseWriter, req *http.Reques
 	decoder := json.NewDecoder(req.Body)
 	if err := decoder.Decode(&event); err != nil {
 		http.Error(res, "failed to decode request", http.StatusBadRequest)
+		return
+	}
+
+	emailReservation, err := reservation.CreateReservation(h.Ctx, h.RedisClient, event.Email)
+	if err != nil {
+		http.Error(res, "email already registered", http.StatusBadRequest)
+		return
+	}
+
+	if _, err := reservation.SaveReservation(h.Ctx, h.EsdbClient, emailReservation); err != nil {
+		h.Log.Error("appending a reservation event to stream resulted in an error", "error", err)
+		res.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 

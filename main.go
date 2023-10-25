@@ -42,7 +42,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:    ":8080",
-		Handler: handler.NewHttpHandler(ctx, logger, esdbClient, sqlClient),
+		Handler: handler.NewHttpHandler(ctx, logger, esdbClient, sqlClient, redisClient),
 	}
 
 	eventHandler := utils.NewStartStop(ctx, func(stoppableCtx context.Context) error {
