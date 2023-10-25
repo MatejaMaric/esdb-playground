@@ -11,6 +11,7 @@ import (
 
 	"github.com/MatejaMaric/esdb-playground/db"
 	"github.com/MatejaMaric/esdb-playground/handler"
+	"github.com/MatejaMaric/esdb-playground/reservation"
 	"github.com/MatejaMaric/esdb-playground/utils"
 )
 
@@ -32,7 +33,7 @@ func main() {
 	}
 	logger.Info("successfully connected to MariaDB instance")
 
-	_, err = db.ConnectToRedis()
+	redisClient, err := db.ConnectToRedis()
 	if err != nil {
 		logger.Error("failed to connect to Redis instance", "error", err)
 		os.Exit(1)
@@ -48,6 +49,15 @@ func main() {
 		return handler.HandleUserStream(stoppableCtx, logger, esdbClient, sqlClient)
 	})
 
+	reservationHandler := utils.NewStartStop(ctx, func(stoppableCtx context.Context) error {
+		return handler.HandleReservationStream(stoppableCtx, logger, esdbClient, redisClient)
+	})
+
+	if err := reservation.RepopulateRedis(ctx, esdbClient, redisClient); err != nil {
+		logger.Error("failed to repopulate Redis with reservations", "error", err)
+		os.Exit(1)
+	}
+
 	go func() {
 		if err := eventHandler.Start(); err != nil {
 			logger.Error("event handler returned an error", "error", err)
@@ -57,6 +67,12 @@ func main() {
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Error("server's ListenAndServe method returned an error", "error", err)
+		}
+	}()
+
+	go func() {
+		if err := reservationHandler.Start(); err != nil {
+			logger.Error("reservation handler returned an error", "error", err)
 		}
 	}()
 
@@ -71,5 +87,9 @@ func main() {
 
 	if err := eventHandler.Stop(5 * time.Second); err != nil {
 		logger.Error("event handler shutdown returned an error", "error", err)
+	}
+
+	if err := reservationHandler.Stop(5 * time.Second); err != nil {
+		logger.Error("reservation handler shutdown returned an error", "error", err)
 	}
 }
