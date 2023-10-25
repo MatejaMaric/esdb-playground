@@ -21,8 +21,10 @@ func HandleReservationStream(ctx context.Context, logger *slog.Logger, esdbClien
 
 		if _, err := reservation.PersistReservation(ctx, redisClient, res); err != nil {
 			logger.Error("failed to persist a reservation", "event", event, "error", err)
+			return nil
 		}
 
+		logger.Info("reservation event handled", "reservation.Key", res.Key)
 		return nil
 	}
 

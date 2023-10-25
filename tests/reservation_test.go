@@ -23,6 +23,11 @@ func TestReservationLogic(t *testing.T) {
 
 	CheckTTL(t, ctx, TestRedisClient, res.Key)
 
+	_, err = reservation.CreateReservation(ctx, TestRedisClient, "unique@email.com")
+	if err == nil {
+		t.Fatal("error expected when making a duplicate reservation!")
+	}
+
 	res, err = reservation.PersistReservation(ctx, TestRedisClient, res)
 	if err != nil {
 		t.Fatal(err)

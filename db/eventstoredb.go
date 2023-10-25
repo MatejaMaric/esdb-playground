@@ -67,6 +67,9 @@ func HandleReadStream(ctx context.Context, esdbClient *esdb.Client, streamName s
 	}
 
 	stream, err := esdbClient.ReadStream(ctx, streamName, ropts, math.MaxUint64)
+	if errors.Is(err, esdb.ErrStreamNotFound) {
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("failed to read the stream '%s': %w", streamName, err)
 	}
