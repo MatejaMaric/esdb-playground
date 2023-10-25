@@ -3,6 +3,7 @@ package reservation
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -14,6 +15,8 @@ import (
 )
 
 const Timeout time.Duration = 3 * time.Second
+
+var ErrReservationExists = errors.New("reservation already exists for the key")
 
 type Reservation struct {
 	Key         string
@@ -29,8 +32,12 @@ func CreateReservation(ctx context.Context, redisClient *redis.Client, value str
 		return Reservation{}, fmt.Errorf("failed creating an uuid: %w", err)
 	}
 
-	if err := redisClient.SetNX(ctx, value, token.String(), Timeout).Err(); err != nil {
+	ok, err := redisClient.SetNX(ctx, value, token.String(), Timeout).Result()
+	if err != nil {
 		return Reservation{}, fmt.Errorf("failed to reserve in Redis: %w", err)
+	}
+	if !ok {
+		return Reservation{}, ErrReservationExists
 	}
 
 	return Reservation{
@@ -80,5 +87,11 @@ func RepopulateRedis(ctx context.Context, esdbClient *esdb.Client, redisClient *
 		_, err := PersistReservation(ctx, redisClient, reservation)
 		return err
 	}
-	return db.HandleReadStream(ctx, esdbClient, string(events.ReservationStream), handler)
+
+	err := db.HandleReadStream(ctx, esdbClient, string(events.ReservationStream), handler)
+	if errors.Is(err, esdb.ErrStreamNotFound) {
+		return nil
+	}
+
+	return err
 }
