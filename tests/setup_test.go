@@ -1,36 +1,56 @@
 package tests
 
 import (
+	"database/sql"
 	"log"
 	"os"
 	"testing"
 
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/EventStore/EventStore-Client-Go/esdb"
 	"github.com/ory/dockertest/v3"
+	"github.com/redis/go-redis/v9"
+	"golang.org/x/sync/errgroup"
+)
+
+var (
+	TestEsdbClient  *esdb.Client
+	TestRedisClient *redis.Client
+	TestSqlClient   *sql.DB
 )
 
 func TestMain(m *testing.M) {
-	log.Default().Print("Running TestMain")
-	pool, err := dockertest.NewPool("")
-	if err != nil {
-		log.Fatalf("Could not construct pool: %s", err)
-	}
+	pool := SetupDockertestPool()
 
-	err = pool.Client.Ping()
-	if err != nil {
-		log.Fatalf("Could not connect to Docker: %s", err)
-	}
+	var resourceMariaDB, resourceRedis, resourceEventStoreDB *dockertest.Resource
 
-	resources := CreateResources(pool, map[string]SpawnFunc{
-		"EventStoreDB": SpawnTestEventStoreDB,
-		"Redis":        SpawnTestRedis,
-		// "MariaDB":      SpawnTestMariaDB,
+	eg := &errgroup.Group{}
+
+	eg.Go(func() error {
+		var err error
+		TestSqlClient, resourceMariaDB, err = SpawnTestMariaDB(pool)
+		return err
 	})
+
+	eg.Go(func() error {
+		var err error
+		TestRedisClient, resourceRedis, err = SpawnTestRedis(pool)
+		return err
+	})
+
+	eg.Go(func() error {
+		var err error
+		TestEsdbClient, resourceEventStoreDB, err = SpawnTestEventStoreDB(pool)
+		return err
+	})
+
+	if err := eg.Wait(); err != nil {
+		log.Fatal(err)
+	}
 
 	code := m.Run()
 
 	// You can't defer this because os.Exit doesn't care for defer
-	PurgeResources(pool, resources)
+	PurgeResources(pool, resourceMariaDB, resourceRedis, resourceEventStoreDB)
 
 	os.Exit(code)
 }

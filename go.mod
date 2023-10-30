@@ -8,6 +8,7 @@ require (
 	github.com/gofrs/uuid v3.3.0+incompatible
 	github.com/ory/dockertest/v3 v3.10.0
 	github.com/redis/go-redis/v9 v9.2.1
+	golang.org/x/sync v0.4.0
 )
 
 require (

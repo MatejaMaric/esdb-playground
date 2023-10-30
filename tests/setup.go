@@ -6,42 +6,27 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"testing"
-	"time"
 
 	"github.com/EventStore/EventStore-Client-Go/esdb"
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/ory/dockertest/v3"
 	"github.com/redis/go-redis/v9"
 )
 
-var (
-	TestDb          *sql.DB
-	TestEsdbClient  *esdb.Client
-	TestRedisClient *redis.Client
-)
-
-type SpawnFunc func(pool *dockertest.Pool) (*dockertest.Resource, func() error, error)
-
-func CreateResources(pool *dockertest.Pool, resourceFuncs map[string]SpawnFunc) []*dockertest.Resource {
-	var resources []*dockertest.Resource
-
-	for name, spawn := range resourceFuncs {
-		resource, retry, err := spawn(pool)
-		if err != nil {
-			log.Fatalf("could not start %s: %v", name, err)
-		}
-
-		if err := pool.Retry(retry); err != nil {
-			log.Fatalf("could not connect to %s: %v", name, err)
-		}
-
-		resources = append(resources, resource)
+func SetupDockertestPool() *dockertest.Pool {
+	pool, err := dockertest.NewPool("")
+	if err != nil {
+		log.Fatalf("Could not construct pool: %s", err)
 	}
 
-	return resources
+	if err := pool.Client.Ping(); err != nil {
+		log.Fatalf("Could not connect to Docker: %s", err)
+	}
+
+	return pool
 }
 
-func PurgeResources(pool *dockertest.Pool, resources []*dockertest.Resource) {
+func PurgeResources(pool *dockertest.Pool, resources ...*dockertest.Resource) {
 	for _, resource := range resources {
 		if err := pool.Purge(resource); err != nil {
 			log.Fatalf("Could not purge resource: %s", err)
@@ -49,7 +34,7 @@ func PurgeResources(pool *dockertest.Pool, resources []*dockertest.Resource) {
 	}
 }
 
-func SpawnTestMariaDB(pool *dockertest.Pool) (*dockertest.Resource, func() error, error) {
+func SpawnTestMariaDB(pool *dockertest.Pool) (*sql.DB, *dockertest.Resource, error) {
 	ropts := dockertest.RunOptions{
 		Repository: "mariadb",
 		Tag:        "11.0.3-jammy",
@@ -61,19 +46,25 @@ func SpawnTestMariaDB(pool *dockertest.Pool) (*dockertest.Resource, func() error
 		return nil, nil, err
 	}
 
-	retryFunc := func() error {
+	var sqlClient *sql.DB
+
+	retry := func() error {
 		var err error
-		TestDb, err = sql.Open("mysql", fmt.Sprintf("root:secret@(localhost:%s)/mysql", resource.GetPort("3306/tcp")))
+		sqlClient, err = sql.Open("mysql", fmt.Sprintf("root:secret@(localhost:%s)/mysql", resource.GetPort("3306/tcp")))
 		if err != nil {
 			return err
 		}
-		return TestDb.Ping()
+		return sqlClient.Ping()
 	}
 
-	return resource, retryFunc, nil
+	if err := pool.Retry(retry); err != nil {
+		return nil, nil, err
+	}
+
+	return sqlClient, resource, nil
 }
 
-func SpawnTestEventStoreDB(pool *dockertest.Pool) (*dockertest.Resource, func() error, error) {
+func SpawnTestEventStoreDB(pool *dockertest.Pool) (*esdb.Client, *dockertest.Resource, error) {
 	ropts := dockertest.RunOptions{
 		Repository:   "eventstore/eventstore",
 		Tag:          "22.10.3-alpha-arm64v8",
@@ -101,7 +92,9 @@ func SpawnTestEventStoreDB(pool *dockertest.Pool) (*dockertest.Resource, func() 
 		return nil, nil, fmt.Errorf("failed to parse EventStoreDB connection string: %w", err)
 	}
 
-	retryFunc := func() error {
+	var esdbClient *esdb.Client
+
+	retry := func() error {
 		if resource != nil && resource.Container != nil {
 			containerInfo, containerError := pool.Client.InspectContainer(resource.Container.ID)
 			if containerError == nil && !containerInfo.State.Running {
@@ -115,14 +108,18 @@ func SpawnTestEventStoreDB(pool *dockertest.Pool) (*dockertest.Resource, func() 
 			return err
 		}
 
-		TestEsdbClient, err = esdb.NewClient(esdbConf)
+		esdbClient, err = esdb.NewClient(esdbConf)
 		return err
 	}
 
-	return resource, retryFunc, nil
+	if err := pool.Retry(retry); err != nil {
+		return nil, nil, err
+	}
+
+	return esdbClient, resource, nil
 }
 
-func SpawnTestRedis(pool *dockertest.Pool) (*dockertest.Resource, func() error, error) {
+func SpawnTestRedis(pool *dockertest.Pool) (*redis.Client, *dockertest.Resource, error) {
 	ropts := dockertest.RunOptions{
 		Repository: "redis",
 		Tag:        "7.2-alpine3.18",
@@ -133,32 +130,18 @@ func SpawnTestRedis(pool *dockertest.Pool) (*dockertest.Resource, func() error, 
 		return nil, nil, err
 	}
 
-	retryFunc := func() error {
-		TestRedisClient = redis.NewClient(&redis.Options{
+	var redisClient *redis.Client
+
+	retry := func() error {
+		redisClient = redis.NewClient(&redis.Options{
 			Addr: fmt.Sprintf("localhost:%s", resource.GetPort("6379/tcp")),
 		})
-		return TestRedisClient.Ping(context.Background()).Err()
+		return redisClient.Ping(context.Background()).Err()
 	}
 
-	return resource, retryFunc, nil
-}
-
-func CheckTTL(t *testing.T, ctx context.Context, redisClient *redis.Client, key string) time.Duration {
-	ttlCmd := TestRedisClient.TTL(ctx, key)
-	if err := ttlCmd.Err(); err != nil {
-		t.Fatal(err)
+	if err := pool.Retry(retry); err != nil {
+		return nil, nil, err
 	}
 
-	ttl := ttlCmd.Val()
-
-	switch ttl {
-	case -2:
-		t.Log("TTL is -2 (key does not exist)")
-	case -1:
-		t.Log("TTL is -1 (key exists, but has no associated expiry)")
-	default:
-		t.Logf("TTL: %s", ttl)
-	}
-
-	return ttl
+	return redisClient, resource, nil
 }

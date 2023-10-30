@@ -28,6 +28,8 @@ func TestReservationLogic(t *testing.T) {
 		t.Fatal("error expected when making a duplicate reservation!")
 	}
 
+	_, err = reservation.SaveReservation(ctx, TestEsdbClient, res)
+
 	res, err = reservation.PersistReservation(ctx, TestRedisClient, res)
 	if err != nil {
 		t.Fatal(err)
@@ -46,4 +48,24 @@ func TestReservationLogic(t *testing.T) {
 	if getCmd.Val() != "persisted" {
 		t.Fatalf("unexpected token: %s", getCmd.Val())
 	}
+}
+
+func CheckTTL(t *testing.T, ctx context.Context, redisClient *redis.Client, key string) time.Duration {
+	ttlCmd := TestRedisClient.TTL(ctx, key)
+	if err := ttlCmd.Err(); err != nil {
+		t.Fatal(err)
+	}
+
+	ttl := ttlCmd.Val()
+
+	switch ttl {
+	case -2:
+		t.Log("TTL is -2 (key does not exist)")
+	case -1:
+		t.Log("TTL is -1 (key exists, but has no associated expiry)")
+	default:
+		t.Logf("TTL: %s", ttl)
+	}
+
+	return ttl
 }
