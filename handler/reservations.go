@@ -24,7 +24,7 @@ func HandleReservationStream(ctx context.Context, logger *slog.Logger, esdbClien
 			return nil
 		}
 
-		logger.Info("reservation event handled", "reservation.Key", res.Key)
+		logger.Info("reservation event handled", "reservation", res)
 		return nil
 	}
 

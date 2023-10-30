@@ -73,10 +73,15 @@ func (h *HttpHandler) handleCreateUser(res http.ResponseWriter, req *http.Reques
 		return
 	}
 
-	if _, err := reservation.SaveReservation(h.Ctx, h.EsdbClient, emailReservation); err != nil {
+	if wr, err := reservation.SaveReservation(h.Ctx, h.EsdbClient, emailReservation); err != nil {
 		h.Log.Error("appending a reservation event to stream resulted in an error", "error", err)
 		res.WriteHeader(http.StatusInternalServerError)
 		return
+	} else {
+		h.Log.Info("SaveReservation succeeded",
+			"emailReservation", emailReservation,
+			"WriteResult", wr,
+		)
 	}
 
 	appendRes, err := AppendCreateUserEvent(h.Ctx, h.EsdbClient, event)
