@@ -7,7 +7,6 @@ import (
 
 	"github.com/EventStore/EventStore-Client-Go/esdb"
 	"github.com/MatejaMaric/esdb-playground/events"
-	"github.com/gofrs/uuid"
 )
 
 type streamProjection struct {
@@ -46,21 +45,9 @@ func (p *streamProjection) handleCreateUserEvent(rawEvent esdb.RecordedEvent) er
 
 	streamName := events.UserStateStream.ForUser(event.Username)
 
-	eventId, err := uuid.NewV4()
+	stateEvent, err := events.Create(events.UserState, user)
 	if err != nil {
-		return fmt.Errorf("failed to create a uuid: %w", err)
-	}
-
-	stateEventData, err := json.Marshal(user)
-	if err != nil {
-		return fmt.Errorf("failed to marshal json: %w", err)
-	}
-
-	stateEvent := esdb.EventData{
-		EventID:     eventId,
-		EventType:   string(events.UserState),
-		ContentType: esdb.JsonContentType,
-		Data:        stateEventData,
+		return err
 	}
 
 	aopts := esdb.AppendToStreamOptions{ExpectedRevision: esdb.NoStream{}}

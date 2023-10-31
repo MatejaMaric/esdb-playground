@@ -52,7 +52,7 @@ Write a reservation into EventStoreDB reservation stream.
 After the reservation was written, subscription to reservation stream should call the PresistReservation function.
 */
 func SaveReservation(ctx context.Context, esdbClient *esdb.Client, reservation Reservation) (*esdb.WriteResult, error) {
-	return db.AppendEvent(ctx, esdbClient, string(events.ReservationStream), string(events.ReserveEmail), reservation, esdb.Any{})
+	return db.AppendEvent(ctx, esdbClient, string(events.ReservationStream), events.ReserveEmail, reservation, esdb.Any{})
 }
 
 /*

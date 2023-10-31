@@ -6,19 +6,19 @@ import (
 	"testing"
 
 	"github.com/EventStore/EventStore-Client-Go/esdb"
-	"github.com/gofrs/uuid"
+	"github.com/MatejaMaric/esdb-playground/events"
 )
 
 func TestAppand(t *testing.T) {
 	ctx := context.Background()
 
-	wr1, err := TestEsdbClient.AppendToStream(ctx, "user-A", esdb.AppendToStreamOptions{}, CreateRandomEvent())
+	wr1, err := TestEsdbClient.AppendToStream(ctx, "user-A", esdb.AppendToStreamOptions{}, events.MustCreate(events.CreateUser, nil))
 	if err != nil {
 		t.Fatalf("failed appending 1. event to user-A: %v", err)
 	}
 	LogWriteResult(t, wr1)
 
-	wr2, err := TestEsdbClient.AppendToStream(ctx, "random-A", esdb.AppendToStreamOptions{}, CreateRandomEvent())
+	wr2, err := TestEsdbClient.AppendToStream(ctx, "random-A", esdb.AppendToStreamOptions{}, events.MustCreate(events.CreateUser, nil))
 	if err != nil {
 		t.Fatalf("failed appending 1. event to random-A: %v", err)
 	}
@@ -28,20 +28,11 @@ func TestAppand(t *testing.T) {
 		ExpectedRevision: esdb.Revision(wr1.NextExpectedVersion),
 	}
 
-	wr3, err := TestEsdbClient.AppendToStream(ctx, "user-A", aopts, CreateRandomEvent())
+	wr3, err := TestEsdbClient.AppendToStream(ctx, "user-A", aopts, events.MustCreate(events.CreateUser, nil))
 	if err != nil {
 		t.Fatalf("failed appending 2. event to user-A: %v", err)
 	}
 	LogWriteResult(t, wr3)
-}
-
-func CreateRandomEvent() esdb.EventData {
-	return esdb.EventData{
-		EventID:     uuid.Must(uuid.NewV4()),
-		EventType:   "someEventType",
-		ContentType: esdb.BinaryContentType,
-		Data:        []byte{0x00, 0x01, 0x02, 0x03},
-	}
 }
 
 func LogWriteResult(t *testing.T, wr *esdb.WriteResult) {

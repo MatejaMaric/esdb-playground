@@ -2,7 +2,6 @@ package aggregates_test
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"os"
 	"strings"
@@ -13,7 +12,6 @@ import (
 	"github.com/MatejaMaric/esdb-playground/events"
 	"github.com/MatejaMaric/esdb-playground/tests"
 	"github.com/go-test/deep"
-	"github.com/gofrs/uuid"
 	"github.com/ory/dockertest/v3"
 )
 
@@ -42,9 +40,9 @@ func TestNewUserAggregate(t *testing.T) {
 	ctx := context.Background()
 
 	eds := []esdb.EventData{
-		CreateEvent(events.CreateUser, events.CreateUserEvent{"test", "test@test.com"}),
-		CreateEvent(events.LoginUser, events.LoginUserEvent{"test"}),
-		CreateEvent(events.LoginUser, events.LoginUserEvent{"test"}),
+		events.MustCreate(events.CreateUser, events.CreateUserEvent{"test", "test@test.com"}),
+		events.MustCreate(events.LoginUser, events.LoginUserEvent{"test"}),
+		events.MustCreate(events.LoginUser, events.LoginUserEvent{"test"}),
 	}
 
 	_, err := TestEsdbClient.AppendToStream(ctx, events.UserEventsStream.ForUser("test"), esdb.AppendToStreamOptions{}, eds...)
@@ -61,15 +59,5 @@ func TestNewUserAggregate(t *testing.T) {
 
 	if diff := deep.Equal(expectedUa, ua); diff != nil {
 		t.Fatalf("unexpected user aggregate:\n%v\n", strings.Join(diff, "\n"))
-	}
-}
-
-func CreateEvent(eventType events.Event, eventData any) esdb.EventData {
-	jsonData, _ := json.Marshal(eventData)
-	return esdb.EventData{
-		EventID:     uuid.Must(uuid.NewV4()),
-		EventType:   string(eventType),
-		ContentType: esdb.JsonContentType,
-		Data:        jsonData,
 	}
 }

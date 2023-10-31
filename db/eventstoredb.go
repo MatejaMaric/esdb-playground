@@ -2,14 +2,13 @@ package db
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"math"
 
 	"github.com/EventStore/EventStore-Client-Go/esdb"
-	"github.com/gofrs/uuid"
+	"github.com/MatejaMaric/esdb-playground/events"
 )
 
 func ConnectToEventStoreDB() (*esdb.Client, error) {
@@ -27,25 +26,13 @@ func AppendEvent(
 	ctx context.Context,
 	esdbClient *esdb.Client,
 	streamName string,
-	eventType string,
+	eventType events.Event,
 	eventData any,
 	expectedRevision esdb.ExpectedRevision,
 ) (*esdb.WriteResult, error) {
-	eventId, err := uuid.NewV4()
+	esdbEvent, err := events.Create(eventType, eventData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create a uuid: %w", err)
-	}
-
-	jsonData, err := json.Marshal(eventData)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal json: %w", err)
-	}
-
-	esdbEvent := esdb.EventData{
-		EventID:     eventId,
-		EventType:   eventType,
-		ContentType: esdb.JsonContentType,
-		Data:        jsonData,
+		return nil, err
 	}
 
 	aopts := esdb.AppendToStreamOptions{

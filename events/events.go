@@ -1,6 +1,12 @@
 package events
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/EventStore/EventStore-Client-Go/esdb"
+	"github.com/gofrs/uuid"
+)
 
 type Stream string
 
@@ -37,4 +43,37 @@ type CreateUserEvent struct {
 
 type LoginUserEvent struct {
 	Username string `json:"username"`
+}
+
+func Create(eventType Event, eventData any) (esdb.EventData, error) {
+	eventId, err := uuid.NewV4()
+	if err != nil {
+		return esdb.EventData{}, fmt.Errorf("failed to create a uuid: %w", err)
+	}
+
+	jsonData, err := json.Marshal(eventData)
+	if err != nil {
+		return esdb.EventData{}, fmt.Errorf("failed to marshal json: %w", err)
+	}
+
+	return esdb.EventData{
+		EventID:     eventId,
+		EventType:   string(eventType),
+		ContentType: esdb.JsonContentType,
+		Data:        jsonData,
+	}, nil
+}
+
+func MustCreate(eventType Event, eventData any) esdb.EventData {
+	jsonData, err := json.Marshal(eventData)
+	if err != nil {
+		panic(fmt.Errorf("failed to marshal json: %w", err))
+	}
+
+	return esdb.EventData{
+		EventID:     uuid.Must(uuid.NewV4()),
+		EventType:   string(eventType),
+		ContentType: esdb.JsonContentType,
+		Data:        jsonData,
+	}
 }

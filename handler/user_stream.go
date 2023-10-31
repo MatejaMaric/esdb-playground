@@ -54,7 +54,7 @@ func AppendCreateUserEvent(ctx context.Context, esdbClient *esdb.Client, event e
 		ctx,
 		esdbClient,
 		events.UserEventsStream.ForUser(event.Username),
-		string(events.CreateUser),
+		events.CreateUser,
 		event,
 		esdb.NoStream{},
 	)
@@ -65,7 +65,7 @@ func AppendLoginUserEvent(ctx context.Context, esdbClient *esdb.Client, event ev
 		ctx,
 		esdbClient,
 		events.UserEventsStream.ForUser(event.Username),
-		string(events.LoginUser),
+		events.LoginUser,
 		event,
 		esdb.StreamExists{},
 	)
