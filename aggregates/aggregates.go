@@ -35,31 +35,24 @@ func NewUserAggregate(ctx context.Context, esdbClient *esdb.Client, username str
 	return user, nil
 }
 
-func (ua UserAggregate) Apply(event esdb.RecordedEvent) (UserAggregate, error) {
-	var expectedVersion uint64
-	if event.EventNumber == 0 {
-		expectedVersion = 0
-	} else {
-		expectedVersion = event.EventNumber - 1
-	}
-
-	if ua.Version != expectedVersion {
-		return ua, fmt.Errorf("unexpected Event Number %v, wanted %v", event.EventNumber, ua.Version+1)
-	}
-
-	switch event.EventType {
+func (ua UserAggregate) Apply(re esdb.RecordedEvent) (UserAggregate, error) {
+	switch re.EventType {
 	case string(events.CreateUser):
-		return ua.applyCreateUser(event.Data)
+		return ua.ApplyCreateUser(re)
 	case string(events.LoginUser):
-		return ua.applyLoginUser(event.Data)
+		return ua.ApplyLoginUser(re)
 	default:
-		return ua, fmt.Errorf("unknown event type: %v", event.EventType)
+		return ua, fmt.Errorf("unknown event type: %v", re.EventType)
 	}
 }
 
-func (ua UserAggregate) applyCreateUser(eventData []byte) (UserAggregate, error) {
+func (ua UserAggregate) ApplyCreateUser(re esdb.RecordedEvent) (UserAggregate, error) {
+	if _, err := ua.IsEventNumberExpected(re); err != nil {
+		return ua, err
+	}
+
 	var event events.CreateUserEvent
-	if err := json.Unmarshal(eventData, &event); err != nil {
+	if err := json.Unmarshal(re.Data, &event); err != nil {
 		return ua, fmt.Errorf("failed to json unmarshal event data: %w", err)
 	}
 
@@ -71,9 +64,13 @@ func (ua UserAggregate) applyCreateUser(eventData []byte) (UserAggregate, error)
 	}, nil
 }
 
-func (ua UserAggregate) applyLoginUser(eventData []byte) (UserAggregate, error) {
+func (ua UserAggregate) ApplyLoginUser(re esdb.RecordedEvent) (UserAggregate, error) {
+	if _, err := ua.IsEventNumberExpected(re); err != nil {
+		return ua, err
+	}
+
 	var event events.LoginUserEvent
-	if err := json.Unmarshal(eventData, &event); err != nil {
+	if err := json.Unmarshal(re.Data, &event); err != nil {
 		return ua, fmt.Errorf("failed to json unmarshal event data: %w", err)
 	}
 
@@ -83,4 +80,19 @@ func (ua UserAggregate) applyLoginUser(eventData []byte) (UserAggregate, error) 
 		LoginCount: ua.LoginCount + 1,
 		Version:    ua.Version + 1,
 	}, nil
+}
+
+func (ua UserAggregate) IsEventNumberExpected(re esdb.RecordedEvent) (bool, error) {
+	var expectedVersion uint64
+	if re.EventNumber == 0 {
+		expectedVersion = 0
+	} else {
+		expectedVersion = re.EventNumber - 1
+	}
+
+	if ua.Version != expectedVersion {
+		return false, fmt.Errorf("unexpected Event Number %v, wanted %v", re.EventNumber, ua.Version+1)
+	}
+
+	return true, nil
 }

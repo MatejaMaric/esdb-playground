@@ -5,6 +5,7 @@ go 1.21
 require (
 	github.com/EventStore/EventStore-Client-Go v1.0.2
 	github.com/go-sql-driver/mysql v1.7.1
+	github.com/go-test/deep v1.1.0
 	github.com/gofrs/uuid v3.3.0+incompatible
 	github.com/ory/dockertest/v3 v3.10.0
 	github.com/redis/go-redis/v9 v9.2.1
