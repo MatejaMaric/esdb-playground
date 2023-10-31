@@ -25,17 +25,19 @@ func TestMain(m *testing.M) {
 
 	eg := &errgroup.Group{}
 
-	eg.Go(func() error {
-		var err error
-		TestSqlClient, resourceMariaDB, err = SpawnTestMariaDB(pool)
-		return err
-	})
+	/*
+		eg.Go(func() error {
+			var err error
+			TestSqlClient, resourceMariaDB, err = SpawnTestMariaDB(pool)
+			return err
+		})
 
-	eg.Go(func() error {
-		var err error
-		TestRedisClient, resourceRedis, err = SpawnTestRedis(pool)
-		return err
-	})
+		eg.Go(func() error {
+			var err error
+			TestRedisClient, resourceRedis, err = SpawnTestRedis(pool)
+			return err
+		})
+	*/
 
 	eg.Go(func() error {
 		var err error

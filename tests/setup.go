@@ -27,7 +27,11 @@ func SetupDockertestPool() *dockertest.Pool {
 }
 
 func PurgeResources(pool *dockertest.Pool, resources ...*dockertest.Resource) {
-	for _, resource := range resources {
+	for i, resource := range resources {
+		if resource == nil {
+			log.Printf("dockertest resource provided at index %d is nil", i)
+			continue
+		}
 		if err := pool.Purge(resource); err != nil {
 			log.Fatalf("Could not purge resource: %s", err)
 		}
