@@ -8,6 +8,7 @@ import (
 	"math"
 
 	"github.com/EventStore/EventStore-Client-Go/esdb"
+	"github.com/MatejaMaric/esdb-playground/aggregates"
 	"github.com/MatejaMaric/esdb-playground/events"
 )
 
@@ -137,4 +138,44 @@ func HandleSubscription(stream *esdb.Subscription, handler func(esdb.RecordedEve
 			return nil
 		}
 	}
+}
+
+func AppendCreateUserEvent(ctx context.Context, esdbClient *esdb.Client, event events.CreateUserEvent) (*esdb.WriteResult, error) {
+	return AppendEvent(
+		ctx,
+		esdbClient,
+		events.UserEventsStream.ForUser(event.Username),
+		events.CreateUser,
+		event,
+		esdb.NoStream{},
+	)
+}
+
+func AppendLoginUserEvent(ctx context.Context, esdbClient *esdb.Client, event events.LoginUserEvent) (*esdb.WriteResult, error) {
+	return AppendEvent(
+		ctx,
+		esdbClient,
+		events.UserEventsStream.ForUser(event.Username),
+		events.LoginUser,
+		event,
+		esdb.StreamExists{},
+	)
+}
+
+func NewUserFromStream(ctx context.Context, esdbClient *esdb.Client, username string) (aggregates.User, error) {
+	streamName := events.UserEventsStream.ForUser(username)
+
+	user := aggregates.User{}
+	var err error
+
+	handler := func(re esdb.RecordedEvent) error {
+		user, err = user.Apply(re)
+		return err
+	}
+
+	if err := HandleReadStream(ctx, esdbClient, streamName, handler); err != nil {
+		return user, err
+	}
+
+	return user, nil
 }

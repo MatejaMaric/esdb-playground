@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/EventStore/EventStore-Client-Go/esdb"
+	"github.com/MatejaMaric/esdb-playground/aggregates"
 	"github.com/MatejaMaric/esdb-playground/db"
 	"github.com/MatejaMaric/esdb-playground/events"
 )
@@ -34,17 +35,10 @@ func (p *dbProjection) HandleEvent(event esdb.RecordedEvent) error {
 	}
 }
 
-func (p *dbProjection) handleCreateUserEvent(rawEvent esdb.RecordedEvent) error {
-	var event events.CreateUserEvent
-	if err := json.Unmarshal(rawEvent.Data, &event); err != nil {
-		return fmt.Errorf("failed to unmarshal event: %w", err)
-	}
-
-	user := events.UserStateEvent{
-		Username:   event.Username,
-		Email:      event.Email,
-		LoginCount: 0,
-		Version:    rawEvent.EventNumber,
+func (p *dbProjection) handleCreateUserEvent(re esdb.RecordedEvent) error {
+	user, err := aggregates.User{}.ApplyCreateUser(re)
+	if err != nil {
+		return err
 	}
 
 	if _, err := db.InsertUser(p.ctx, p.sqlClient, user); err != nil {
@@ -54,23 +48,21 @@ func (p *dbProjection) handleCreateUserEvent(rawEvent esdb.RecordedEvent) error 
 	return nil
 }
 
-func (p *dbProjection) handleLoginUserEvent(rawEvent esdb.RecordedEvent) error {
+func (p *dbProjection) handleLoginUserEvent(re esdb.RecordedEvent) error {
 	var event events.LoginUserEvent
-	if err := json.Unmarshal(rawEvent.Data, &event); err != nil {
+	if err := json.Unmarshal(re.Data, &event); err != nil {
 		return fmt.Errorf("failed to unmarshal event: %w", err)
 	}
 
 	user, err := db.GetUser(p.ctx, p.sqlClient, event.Username)
 	if err != nil {
-		return fmt.Errorf("failed to get user %s: %w", event.Username, err)
+		return err
 	}
 
-	if user.Version != (rawEvent.EventNumber - 1) {
-		return fmt.Errorf("expected version %d, got %d ", rawEvent.EventNumber-1, user.Version)
+	user, err = user.ApplyLoginUser(re)
+	if err != nil {
+		return err
 	}
-
-	user.LoginCount++
-	user.Version = rawEvent.EventNumber
 
 	affectedUsers, err := db.UpdateUser(p.ctx, p.sqlClient, user)
 	if err != nil {

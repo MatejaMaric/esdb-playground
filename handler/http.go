@@ -9,7 +9,6 @@ import (
 	"net/http"
 
 	"github.com/EventStore/EventStore-Client-Go/esdb"
-	"github.com/MatejaMaric/esdb-playground/aggregates"
 	"github.com/MatejaMaric/esdb-playground/db"
 	"github.com/MatejaMaric/esdb-playground/events"
 	"github.com/MatejaMaric/esdb-playground/reservation"
@@ -84,7 +83,7 @@ func (h *HttpHandler) handleCreateUser(res http.ResponseWriter, req *http.Reques
 		)
 	}
 
-	appendRes, err := AppendCreateUserEvent(h.Ctx, h.EsdbClient, event)
+	appendRes, err := db.AppendCreateUserEvent(h.Ctx, h.EsdbClient, event)
 	if err != nil && errors.Is(err, esdb.ErrWrongExpectedStreamRevision) {
 		http.Error(res, "user already exists", http.StatusBadRequest)
 		return
@@ -106,7 +105,7 @@ func (h *HttpHandler) handleCreateUser(res http.ResponseWriter, req *http.Reques
 func (h *HttpHandler) handleGetUsers(res http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
 	if query.Has("username") {
-		user, err := aggregates.NewUserAggregate(h.Ctx, h.EsdbClient, query.Get("username"))
+		user, err := db.NewUserFromStream(h.Ctx, h.EsdbClient, query.Get("username"))
 		if err != nil {
 			h.Log.Error("failed to aggregate user data", "error", err)
 			res.WriteHeader(http.StatusInternalServerError)
@@ -137,7 +136,7 @@ func (h *HttpHandler) handleUserLogin(res http.ResponseWriter, req *http.Request
 		return
 	}
 
-	appendRes, err := AppendLoginUserEvent(h.Ctx, h.EsdbClient, event)
+	appendRes, err := db.AppendLoginUserEvent(h.Ctx, h.EsdbClient, event)
 	if err != nil && errors.Is(err, esdb.ErrStreamNotFound) {
 		http.Error(res, "user does not exists", http.StatusBadRequest)
 		return

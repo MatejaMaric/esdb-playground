@@ -23,18 +23,11 @@ func (s Stream) ForUser(username string) string {
 type Event string
 
 const (
-	UserState    Event = "UserState"
-	CreateUser   Event = "CreateUser"
-	LoginUser    Event = "LoginUser"
-	ReserveEmail Event = "ReserveEmail"
+	UserAggregate Event = "UserAggregate"
+	CreateUser    Event = "CreateUser"
+	LoginUser     Event = "LoginUser"
+	ReserveEmail  Event = "ReserveEmail"
 )
-
-type UserStateEvent struct {
-	Username   string `json:"username"`
-	Email      string `json:"email"`
-	LoginCount int32  `json:"login_count"`
-	Version    uint64 `json:"version"`
-}
 
 type CreateUserEvent struct {
 	Username string `json:"username"`

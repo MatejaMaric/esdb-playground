@@ -48,25 +48,3 @@ func HandleUserStream(ctx context.Context, logger *slog.Logger, esdbClient *esdb
 
 	return db.HandleAllStream(ctx, esdbClient, opts, handler)
 }
-
-func AppendCreateUserEvent(ctx context.Context, esdbClient *esdb.Client, event events.CreateUserEvent) (*esdb.WriteResult, error) {
-	return db.AppendEvent(
-		ctx,
-		esdbClient,
-		events.UserEventsStream.ForUser(event.Username),
-		events.CreateUser,
-		event,
-		esdb.NoStream{},
-	)
-}
-
-func AppendLoginUserEvent(ctx context.Context, esdbClient *esdb.Client, event events.LoginUserEvent) (*esdb.WriteResult, error) {
-	return db.AppendEvent(
-		ctx,
-		esdbClient,
-		events.UserEventsStream.ForUser(event.Username),
-		events.LoginUser,
-		event,
-		esdb.StreamExists{},
-	)
-}

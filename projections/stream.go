@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/EventStore/EventStore-Client-Go/esdb"
+	"github.com/MatejaMaric/esdb-playground/aggregates"
 	"github.com/MatejaMaric/esdb-playground/events"
 )
 
@@ -30,22 +31,20 @@ func (p *streamProjection) HandleEvent(event esdb.RecordedEvent) error {
 	}
 }
 
-func (p *streamProjection) handleCreateUserEvent(rawEvent esdb.RecordedEvent) error {
+func (p *streamProjection) handleCreateUserEvent(re esdb.RecordedEvent) error {
 	var event events.CreateUserEvent
-	if err := json.Unmarshal(rawEvent.Data, &event); err != nil {
+	if err := json.Unmarshal(re.Data, &event); err != nil {
 		return fmt.Errorf("failed to unmarshal event: %w", err)
 	}
 
-	user := events.UserStateEvent{
-		Username:   event.Username,
-		Email:      event.Email,
-		LoginCount: 0,
-		Version:    0,
+	user, err := aggregates.User{}.ApplyCreateUser(re)
+	if err != nil {
+		return err
 	}
 
 	streamName := events.UserStateStream.ForUser(event.Username)
 
-	stateEvent, err := events.Create(events.UserState, user)
+	stateEvent, err := events.Create(events.UserAggregate, user)
 	if err != nil {
 		return err
 	}
@@ -68,9 +67,9 @@ func (p *streamProjection) handleCreateUserEvent(rawEvent esdb.RecordedEvent) er
 	return nil
 }
 
-func (p *streamProjection) handleLoginUserEvent(rawEvent esdb.RecordedEvent) error {
+func (p *streamProjection) handleLoginUserEvent(re esdb.RecordedEvent) error {
 	var event events.LoginUserEvent
-	if err := json.Unmarshal(rawEvent.Data, &event); err != nil {
+	if err := json.Unmarshal(re.Data, &event); err != nil {
 		return fmt.Errorf("failed to unmarshal event: %w", err)
 	}
 

@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/MatejaMaric/esdb-playground/events"
+	"github.com/MatejaMaric/esdb-playground/aggregates"
 	"github.com/go-sql-driver/mysql"
 )
 
@@ -31,7 +31,7 @@ func ConnectToMariaDB() (*sql.DB, error) {
 	return db, nil
 }
 
-func InsertUser(ctx context.Context, db *sql.DB, user events.UserStateEvent) (int64, error) {
+func InsertUser(ctx context.Context, db *sql.DB, user aggregates.User) (int64, error) {
 	result, err := db.ExecContext(ctx, "INSERT INTO users (username, email, login_count, version) VALUES (?, ?, ?, ?)", user.Username, user.Email, user.LoginCount, user.Version)
 	if err != nil {
 		return 0, fmt.Errorf("failed to exec insert command: %w", err)
@@ -45,8 +45,8 @@ func InsertUser(ctx context.Context, db *sql.DB, user events.UserStateEvent) (in
 	return id, nil
 }
 
-func GetUser(ctx context.Context, db *sql.DB, username string) (events.UserStateEvent, error) {
-	var user events.UserStateEvent
+func GetUser(ctx context.Context, db *sql.DB, username string) (aggregates.User, error) {
+	var user aggregates.User
 
 	query, err := db.PrepareContext(ctx, "SELECT username, email, login_count, version FROM users WHERE username = ?")
 	if err != nil {
@@ -61,8 +61,8 @@ func GetUser(ctx context.Context, db *sql.DB, username string) (events.UserState
 	return user, nil
 }
 
-func GetAllUsers(ctx context.Context, db *sql.DB) ([]events.UserStateEvent, error) {
-	var users []events.UserStateEvent
+func GetAllUsers(ctx context.Context, db *sql.DB) ([]aggregates.User, error) {
+	var users []aggregates.User
 
 	rows, err := db.QueryContext(ctx, "SELECT username, email, login_count, version FROM users")
 	if err != nil {
@@ -71,7 +71,7 @@ func GetAllUsers(ctx context.Context, db *sql.DB) ([]events.UserStateEvent, erro
 	defer rows.Close()
 
 	for rows.Next() {
-		var user events.UserStateEvent
+		var user aggregates.User
 		if err := rows.Scan(&user.Username, &user.Email, &user.LoginCount, &user.Version); err != nil {
 			return nil, fmt.Errorf("failed to scan the row: %w", err)
 		}
@@ -85,7 +85,7 @@ func GetAllUsers(ctx context.Context, db *sql.DB) ([]events.UserStateEvent, erro
 	return users, nil
 }
 
-func UpdateUser(ctx context.Context, db *sql.DB, user events.UserStateEvent) (int64, error) {
+func UpdateUser(ctx context.Context, db *sql.DB, user aggregates.User) (int64, error) {
 	stmt, err := db.PrepareContext(ctx, "UPDATE users SET login_count=?, version=? WHERE username=?")
 	if err != nil {
 		return 0, fmt.Errorf("failed to prepare the statement: %w", err)
