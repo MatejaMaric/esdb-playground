@@ -12,12 +12,7 @@ import (
 )
 
 func HandleUserStream(ctx context.Context, logger *slog.Logger, esdbClient *esdb.Client, sqlClient *sql.DB) error {
-	opts := esdb.SubscribeToAllOptions{
-		Filter: &esdb.SubscriptionFilter{
-			Type:     esdb.StreamFilterType,
-			Prefixes: []string{string(events.UserEventsStream)},
-		},
-	}
+	var lastProcessedEvent esdb.Position = esdb.StartPosition
 
 	dbProjection := projections.NewDatabaseProjection(ctx, sqlClient)
 	streamProjection := projections.NewStreamProjection(ctx, esdbClient)
@@ -43,8 +38,29 @@ func HandleUserStream(ctx context.Context, logger *slog.Logger, esdbClient *esdb
 			)
 		}
 
+		lastProcessedEvent = event.Position
+
 		return nil
 	}
 
-	return db.HandleAllStream(ctx, esdbClient, opts, handler)
+	for running := true; running; {
+		select {
+		case <-ctx.Done():
+			break
+		default:
+			opts := esdb.SubscribeToAllOptions{
+				From: lastProcessedEvent,
+				Filter: &esdb.SubscriptionFilter{
+					Type:     esdb.StreamFilterType,
+					Prefixes: []string{string(events.UserEventsStream)},
+				},
+			}
+
+			if err := db.HandleAllStream(ctx, esdbClient, opts, handler); err != nil {
+				logger.Error("handling all stream returned an error", "error", err)
+			}
+		}
+	}
+
+	return nil
 }
