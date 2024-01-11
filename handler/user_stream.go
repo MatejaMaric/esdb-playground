@@ -3,7 +3,9 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log/slog"
+	"time"
 
 	"github.com/EventStore/EventStore-Client-Go/esdb"
 	"github.com/MatejaMaric/esdb-playground/db"
@@ -43,10 +45,13 @@ func HandleUserStream(ctx context.Context, logger *slog.Logger, esdbClient *esdb
 		return nil
 	}
 
-	for running := true; running; {
+	retryCounter := 0
+	lastRetry := time.Now()
+
+	for {
 		select {
 		case <-ctx.Done():
-			break
+			return nil
 		default:
 			opts := esdb.SubscribeToAllOptions{
 				From: lastProcessedEvent,
@@ -58,9 +63,21 @@ func HandleUserStream(ctx context.Context, logger *slog.Logger, esdbClient *esdb
 
 			if err := db.HandleAllStream(ctx, esdbClient, opts, handler); err != nil {
 				logger.Error("handling all stream returned an error", "error", err)
+
+				if time.Since(lastRetry) >= 5*time.Minute {
+					logger.Debug("more than 5 minutes passed since last retry, resetting counter",
+						"lastRetry", lastRetry,
+						"retryCounter", retryCounter,
+					)
+					retryCounter = 0
+				}
+				if retryCounter >= 5 {
+					return errors.New("retired 5 times in the last 5 minutes, failing...")
+				}
+				time.Sleep(time.Second)
+				lastRetry = time.Now()
+				retryCounter++
 			}
 		}
 	}
-
-	return nil
 }
