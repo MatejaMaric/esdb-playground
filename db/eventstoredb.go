@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"strings"
+	"time"
 
 	"github.com/EventStore/EventStore-Client-Go/esdb"
 	"github.com/MatejaMaric/esdb-playground/aggregates"
@@ -209,6 +211,80 @@ func GetPositionOfLatestEventForStream(ctx context.Context, esdbClient *esdb.Cli
 
 		if strings.HasPrefix(resolved.Event.StreamID, string(streamType)) {
 			return &resolved.Event.Position, nil
+		}
+	}
+}
+
+// This function is made to handle readiness and retry requirements
+func HandleAllStreamsOfType(
+	ctx context.Context,
+	logger *slog.Logger,
+	esdbClient *esdb.Client,
+	streamType events.Stream,
+	handler func(esdb.RecordedEvent) error,
+	readyChan chan<- struct{},
+) error {
+	isReady := false
+	lastProcessedEvent := esdb.StartPosition
+	notReadyUntil, err := GetPositionOfLatestEventForStream(ctx, esdbClient, streamType)
+	if err != nil {
+		return err
+	}
+
+	checkIfReady := func() {
+		if !isReady && lastProcessedEvent.Commit >= notReadyUntil.Commit {
+			readyChan <- struct{}{}
+			close(readyChan)
+			isReady = true
+			logger.Debug("sent a ready signal")
+		}
+	}
+
+	checkIfReady()
+
+	newHandler := func(event esdb.RecordedEvent) error {
+		if err := handler(event); err != nil {
+			return err
+		}
+
+		lastProcessedEvent = event.Position
+		checkIfReady()
+		return nil
+	}
+
+	retryCounter := 0
+	lastRetry := time.Now()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			opts := esdb.SubscribeToAllOptions{
+				From: lastProcessedEvent,
+				Filter: &esdb.SubscriptionFilter{
+					Type:     esdb.StreamFilterType,
+					Prefixes: []string{string(streamType)},
+				},
+			}
+
+			if err := HandleAllStream(ctx, esdbClient, opts, newHandler); err != nil {
+				logger.Error("handling all stream returned an error", "error", err)
+
+				if time.Since(lastRetry) >= 5*time.Minute {
+					logger.Debug("more than 5 minutes passed since last retry, resetting counter",
+						"lastRetry", lastRetry,
+						"retryCounter", retryCounter,
+					)
+					retryCounter = 0
+				}
+				if retryCounter >= 5 {
+					return errors.New("retired 5 times in the last 5 minutes, failing...")
+				}
+				time.Sleep(time.Second)
+				lastRetry = time.Now()
+				retryCounter++
+			}
 		}
 	}
 }
