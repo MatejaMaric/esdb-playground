@@ -45,8 +45,10 @@ func main() {
 		Handler: handler.NewHttpHandler(ctx, logger, esdbClient, sqlClient, redisClient),
 	}
 
-	eventHandler := utils.NewStartStop(ctx, func(stoppableCtx context.Context) error {
-		return handler.HandleUserStream(stoppableCtx, logger, esdbClient, sqlClient)
+	userReady := make(chan struct{})
+
+	userEventHandler := utils.NewStartStop(ctx, func(stoppableCtx context.Context) error {
+		return handler.HandleUserStream(stoppableCtx, logger, esdbClient, sqlClient, userReady)
 	})
 
 	reservationHandler := utils.NewStartStop(ctx, func(stoppableCtx context.Context) error {
@@ -59,10 +61,18 @@ func main() {
 	}
 
 	go func() {
-		if err := eventHandler.Start(); err != nil {
+		logger.Debug("starting user event handler")
+		if err := userEventHandler.Start(); err != nil {
 			logger.Error("event handler returned an error", "error", err)
 		}
 	}()
+
+	select {
+	case <-userReady:
+		logger.Debug("user event handler finished processing previous events")
+	case <-ctx.Done():
+		logger.Debug("interrupt received before user event handler finished processing previous events")
+	}
 
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -85,7 +95,7 @@ func main() {
 		logger.Error("server shutdown returned an error", "error", err)
 	}
 
-	if err := eventHandler.Stop(5 * time.Second); err != nil {
+	if err := userEventHandler.Stop(5 * time.Second); err != nil {
 		logger.Error("event handler shutdown returned an error", "error", err)
 	}
 

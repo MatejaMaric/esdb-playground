@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"strings"
 
 	"github.com/EventStore/EventStore-Client-Go/esdb"
 	"github.com/MatejaMaric/esdb-playground/aggregates"
@@ -178,4 +179,36 @@ func NewUserFromStream(ctx context.Context, esdbClient *esdb.Client, username st
 	}
 
 	return user, nil
+}
+
+func GetPositionOfLatestEventForStream(ctx context.Context, esdbClient *esdb.Client, streamType events.Stream) (*esdb.Position, error) {
+	opts := esdb.ReadAllOptions{
+		From:      esdb.EndPosition,
+		Direction: esdb.Backwards,
+	}
+	allStream, err := esdbClient.ReadAll(ctx, opts, math.MaxUint64)
+	if err != nil {
+		return nil, err
+	}
+	defer allStream.Close()
+
+	for {
+		resolved, err := allStream.Recv()
+
+		if errors.Is(err, io.EOF) {
+			return &esdb.StartPosition, nil
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		if resolved.Event == nil {
+			return nil, fmt.Errorf("event is nil!")
+		}
+
+		if strings.HasPrefix(resolved.Event.StreamID, string(streamType)) {
+			return &resolved.Event.Position, nil
+		}
+	}
 }

@@ -13,8 +13,24 @@ import (
 	"github.com/MatejaMaric/esdb-playground/projections"
 )
 
-func HandleUserStream(ctx context.Context, logger *slog.Logger, esdbClient *esdb.Client, sqlClient *sql.DB) error {
-	var lastProcessedEvent esdb.Position = esdb.StartPosition
+func HandleUserStream(ctx context.Context, logger *slog.Logger, esdbClient *esdb.Client, sqlClient *sql.DB, readyChan chan<- struct{}) error {
+	isReady := false
+	lastProcessedEvent := esdb.StartPosition
+	notReadyUntil, err := db.GetPositionOfLatestEventForStream(ctx, esdbClient, events.UserEventsStream)
+	if err != nil {
+		return err
+	}
+
+	checkIfReady := func() {
+		if !isReady && lastProcessedEvent.Commit >= notReadyUntil.Commit {
+			readyChan <- struct{}{}
+			close(readyChan)
+			isReady = true
+			logger.Debug("sent a ready signal from HandleUserStream")
+		}
+	}
+
+	checkIfReady()
 
 	dbProjection := projections.NewDatabaseProjection(ctx, sqlClient)
 	streamProjection := projections.NewStreamProjection(ctx, esdbClient)
@@ -41,6 +57,7 @@ func HandleUserStream(ctx context.Context, logger *slog.Logger, esdbClient *esdb
 		}
 
 		lastProcessedEvent = event.Position
+		checkIfReady()
 
 		return nil
 	}
