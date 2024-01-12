@@ -183,7 +183,7 @@ func NewUserFromStream(ctx context.Context, esdbClient *esdb.Client, username st
 	return user, nil
 }
 
-func GetPositionOfLatestEventForStream(ctx context.Context, esdbClient *esdb.Client, streamType events.Stream) (*esdb.Position, error) {
+func GetPositionOfLatestEventForStreamType(ctx context.Context, esdbClient *esdb.Client, streamType events.Stream) (*esdb.Position, error) {
 	opts := esdb.ReadAllOptions{
 		From:      esdb.EndPosition,
 		Direction: esdb.Backwards,
@@ -226,64 +226,78 @@ func HandleAllStreamsOfType(
 ) error {
 	isReady := false
 	lastProcessedEvent := esdb.StartPosition
-	notReadyUntil, err := GetPositionOfLatestEventForStream(ctx, esdbClient, streamType)
+	notReadyUntil, err := GetPositionOfLatestEventForStreamType(ctx, esdbClient, streamType)
 	if err != nil {
 		return err
 	}
+	retryCounter := 0
+	lastRetry := time.Now()
 
 	checkIfReady := func() {
 		if !isReady && lastProcessedEvent.Commit >= notReadyUntil.Commit {
 			readyChan <- struct{}{}
 			close(readyChan)
 			isReady = true
-			logger.Debug("sent a ready signal")
+			logger.Debug("ready signal sent", "function", "HandleAllStreamsOfType", "streamType", string(streamType))
 		}
 	}
 
-	checkIfReady()
-
-	newHandler := func(event esdb.RecordedEvent) error {
+	handleEvent := func(event esdb.RecordedEvent) error {
 		if err := handler(event); err != nil {
 			return err
 		}
 
 		lastProcessedEvent = event.Position
 		checkIfReady()
+
 		return nil
 	}
 
-	retryCounter := 0
-	lastRetry := time.Now()
+	handleStream := func() error {
+		opts := esdb.SubscribeToAllOptions{
+			From: lastProcessedEvent,
+			Filter: &esdb.SubscriptionFilter{
+				Type:     esdb.StreamFilterType,
+				Prefixes: []string{string(streamType)},
+			},
+		}
+
+		err := HandleAllStream(ctx, esdbClient, opts, handleEvent)
+		if err == nil {
+			return nil
+		}
+
+		logger.Error("handling all stream returned an error", "error", err)
+
+		if time.Since(lastRetry) >= 5*time.Minute {
+			logger.Debug("more than 5 minutes passed since last retry, resetting retry counter",
+				"lastRetry", lastRetry,
+				"retryCounter", retryCounter,
+			)
+			retryCounter = 0
+		}
+
+		if retryCounter >= 5 {
+			return errors.New("retired 5 times in the last 5 minutes, failing...")
+		}
+
+		time.Sleep(time.Second)
+
+		lastRetry = time.Now()
+		retryCounter++
+
+		return nil
+	}
+
+	checkIfReady()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		default:
-			opts := esdb.SubscribeToAllOptions{
-				From: lastProcessedEvent,
-				Filter: &esdb.SubscriptionFilter{
-					Type:     esdb.StreamFilterType,
-					Prefixes: []string{string(streamType)},
-				},
-			}
-
-			if err := HandleAllStream(ctx, esdbClient, opts, newHandler); err != nil {
-				logger.Error("handling all stream returned an error", "error", err)
-
-				if time.Since(lastRetry) >= 5*time.Minute {
-					logger.Debug("more than 5 minutes passed since last retry, resetting counter",
-						"lastRetry", lastRetry,
-						"retryCounter", retryCounter,
-					)
-					retryCounter = 0
-				}
-				if retryCounter >= 5 {
-					return errors.New("retired 5 times in the last 5 minutes, failing...")
-				}
-				time.Sleep(time.Second)
-				lastRetry = time.Now()
-				retryCounter++
+			if err := handleStream(); err != nil {
+				return err
 			}
 		}
 	}
