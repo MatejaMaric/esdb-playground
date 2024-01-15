@@ -293,17 +293,6 @@ func HandleAllStreamsOfType(
 	if err != nil {
 		return err
 	}
-	retryCounter := 0
-	lastRetry := time.Now()
-
-	checkIfReady := func() {
-		if !isReady && lastProcessedEvent.Commit >= notReadyUntil.Commit {
-			readyChan <- struct{}{}
-			close(readyChan)
-			isReady = true
-			logger.Debug("ready signal sent", "function", "HandleAllStreamsOfType", "streamType", string(streamType))
-		}
-	}
 
 	handleEvent := func(event esdb.RecordedEvent) error {
 		if err := handler(event); err != nil {
@@ -311,57 +300,24 @@ func HandleAllStreamsOfType(
 		}
 
 		lastProcessedEvent = event.Position
-		checkIfReady()
+
+		if !isReady && lastProcessedEvent.Commit >= notReadyUntil.Commit {
+			readyChan <- struct{}{}
+			close(readyChan)
+			isReady = true
+			logger.Debug("ready signal sent", "function", "HandleAllStreamsOfType", "streamType", string(streamType))
+		}
 
 		return nil
 	}
 
-	handleStream := func() error {
-		opts := esdb.SubscribeToAllOptions{
-			From: lastProcessedEvent,
-			Filter: &esdb.SubscriptionFilter{
-				Type:     esdb.StreamFilterType,
-				Prefixes: []string{string(streamType)},
-			},
-		}
-
-		err := HandleAllStream(ctx, esdbClient, opts, handleEvent)
-		if err == nil {
-			return nil
-		}
-
-		logger.Error("handling all stream returned an error", "error", err)
-
-		if time.Since(lastRetry) >= 5*time.Minute {
-			logger.Debug("more than 5 minutes passed since last retry, resetting retry counter",
-				"lastRetry", lastRetry,
-				"retryCounter", retryCounter,
-			)
-			retryCounter = 0
-		}
-
-		if retryCounter >= 5 {
-			return errors.New("retired 5 times in the last 5 minutes, failing...")
-		}
-
-		time.Sleep(time.Second)
-
-		lastRetry = time.Now()
-		retryCounter++
-
-		return nil
+	opts := esdb.SubscribeToAllOptions{
+		From: esdb.StartPosition,
+		Filter: &esdb.SubscriptionFilter{
+			Type:     esdb.StreamFilterType,
+			Prefixes: []string{string(streamType)},
+		},
 	}
 
-	checkIfReady()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-			if err := handleStream(); err != nil {
-				return err
-			}
-		}
-	}
+	return HandleAllStreamWithRetry(ctx, logger, esdbClient, opts, handleEvent)
 }
