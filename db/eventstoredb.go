@@ -215,6 +215,69 @@ func GetPositionOfLatestEventForStreamType(ctx context.Context, esdbClient *esdb
 	}
 }
 
+func HandleAllStreamWithRetry(
+	ctx context.Context,
+	logger *slog.Logger,
+	esdbClient *esdb.Client,
+	opts esdb.SubscribeToAllOptions,
+	handler func(esdb.RecordedEvent) error,
+) error {
+	lastProcessedEvent := esdb.StartPosition
+	retryCounter := 0
+	lastRetry := time.Now()
+
+	handleEvent := func(event esdb.RecordedEvent) error {
+		if err := handler(event); err != nil {
+			return err
+		}
+
+		lastProcessedEvent = event.Position
+
+		return nil
+	}
+
+	handleStream := func() error {
+		opts.From = lastProcessedEvent
+
+		err := HandleAllStream(ctx, esdbClient, opts, handleEvent)
+		if err == nil {
+			return nil
+		}
+
+		logger.Error("handling all stream returned an error", "error", err)
+
+		if time.Since(lastRetry) >= 5*time.Minute {
+			logger.Debug("more than 5 minutes passed since last retry, resetting retry counter",
+				"lastRetry", lastRetry,
+				"retryCounter", retryCounter,
+			)
+			retryCounter = 0
+		}
+
+		if retryCounter >= 5 {
+			return errors.New("retired 5 times in the last 5 minutes, failing...")
+		}
+
+		time.Sleep(time.Second)
+
+		lastRetry = time.Now()
+		retryCounter++
+
+		return nil
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			if err := handleStream(); err != nil {
+				return err
+			}
+		}
+	}
+}
+
 // This function is made to handle readiness and retry requirements
 func HandleAllStreamsOfType(
 	ctx context.Context,
