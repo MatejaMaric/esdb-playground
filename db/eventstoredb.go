@@ -294,19 +294,22 @@ func HandleAllStreamsOfType(
 		return err
 	}
 
-	handleEvent := func(event esdb.RecordedEvent) error {
-		if err := handler(event); err != nil {
-			return err
-		}
-
-		lastProcessedEvent = event.Position
-
+	checkIfReady := func() {
 		if !isReady && lastProcessedEvent.Commit >= notReadyUntil.Commit {
 			readyChan <- struct{}{}
 			close(readyChan)
 			isReady = true
 			logger.Debug("ready signal sent", "function", "HandleAllStreamsOfType", "streamType", string(streamType))
 		}
+	}
+
+	handleEvent := func(event esdb.RecordedEvent) error {
+		if err := handler(event); err != nil {
+			return err
+		}
+
+		lastProcessedEvent = event.Position
+		checkIfReady()
 
 		return nil
 	}
@@ -318,6 +321,8 @@ func HandleAllStreamsOfType(
 			Prefixes: []string{string(streamType)},
 		},
 	}
+
+	checkIfReady()
 
 	return HandleAllStreamWithRetry(ctx, logger, esdbClient, opts, handleEvent)
 }
