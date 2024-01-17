@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/EventStore/EventStore-Client-Go/esdb"
+	"github.com/EventStore/EventStore-Client-Go/v3/esdb"
 	"github.com/MatejaMaric/esdb-playground/db"
 	"github.com/MatejaMaric/esdb-playground/events"
 	"github.com/gofrs/uuid"
@@ -89,7 +89,7 @@ func RepopulateRedis(ctx context.Context, esdbClient *esdb.Client, redisClient *
 	}
 
 	err := db.HandleReadStream(ctx, esdbClient, string(events.ReservationStream), handler)
-	if errors.Is(err, esdb.ErrStreamNotFound) {
+	if esdbErr, isNil := esdb.FromError(err); !isNil && esdbErr.Code() == esdb.ErrorCodeResourceNotFound {
 		return nil
 	}
 

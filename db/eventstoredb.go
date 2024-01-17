@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/EventStore/EventStore-Client-Go/esdb"
+	"github.com/EventStore/EventStore-Client-Go/v3/esdb"
 	"github.com/MatejaMaric/esdb-playground/aggregates"
 	"github.com/MatejaMaric/esdb-playground/events"
 )
@@ -185,7 +185,7 @@ func NewUserFromStream(ctx context.Context, esdbClient *esdb.Client, username st
 
 func GetPositionOfLatestEventForStreamType(ctx context.Context, esdbClient *esdb.Client, streamType events.Stream) (*esdb.Position, error) {
 	opts := esdb.ReadAllOptions{
-		From:      esdb.EndPosition,
+		From:      esdb.End{},
 		Direction: esdb.Backwards,
 	}
 	allStream, err := esdbClient.ReadAll(ctx, opts, math.MaxUint64)
@@ -198,7 +198,7 @@ func GetPositionOfLatestEventForStreamType(ctx context.Context, esdbClient *esdb
 		resolved, err := allStream.Recv()
 
 		if errors.Is(err, io.EOF) {
-			return &esdb.StartPosition, nil
+			return &esdb.Position{}, nil
 		}
 
 		if err != nil {
@@ -222,7 +222,7 @@ func HandleAllStreamWithRetry(
 	opts esdb.SubscribeToAllOptions,
 	handler func(esdb.RecordedEvent) error,
 ) error {
-	lastProcessedEvent := esdb.StartPosition
+	lastProcessedEvent := esdb.Position{}
 	retryCounter := 0
 	lastRetry := time.Now()
 
@@ -288,7 +288,7 @@ func HandleAllStreamsOfType(
 	readyChan chan<- struct{},
 ) error {
 	isReady := false
-	lastProcessedEvent := esdb.StartPosition
+	lastProcessedEvent := esdb.Position{}
 	notReadyUntil, err := GetPositionOfLatestEventForStreamType(ctx, esdbClient, streamType)
 	if err != nil {
 		return err
@@ -315,7 +315,7 @@ func HandleAllStreamsOfType(
 	}
 
 	opts := esdb.SubscribeToAllOptions{
-		From: esdb.StartPosition,
+		From: esdb.Start{},
 		Filter: &esdb.SubscriptionFilter{
 			Type:     esdb.StreamFilterType,
 			Prefixes: []string{string(streamType)},

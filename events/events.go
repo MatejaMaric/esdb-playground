@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/EventStore/EventStore-Client-Go/esdb"
+	"github.com/EventStore/EventStore-Client-Go/v3/esdb"
 	"github.com/gofrs/uuid"
 )
 
@@ -52,7 +52,7 @@ func Create(eventType Event, eventData any) (esdb.EventData, error) {
 	return esdb.EventData{
 		EventID:     eventId,
 		EventType:   string(eventType),
-		ContentType: esdb.JsonContentType,
+		ContentType: esdb.ContentTypeJson,
 		Data:        jsonData,
 	}, nil
 }
@@ -66,7 +66,7 @@ func MustCreate(eventType Event, eventData any) esdb.EventData {
 	return esdb.EventData{
 		EventID:     uuid.Must(uuid.NewV4()),
 		EventType:   string(eventType),
-		ContentType: esdb.JsonContentType,
+		ContentType: esdb.ContentTypeJson,
 		Data:        jsonData,
 	}
 }

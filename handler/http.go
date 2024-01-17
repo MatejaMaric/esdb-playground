@@ -4,11 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"log/slog"
 	"net/http"
 
-	"github.com/EventStore/EventStore-Client-Go/esdb"
+	"github.com/EventStore/EventStore-Client-Go/v3/esdb"
 	"github.com/MatejaMaric/esdb-playground/db"
 	"github.com/MatejaMaric/esdb-playground/events"
 	"github.com/MatejaMaric/esdb-playground/reservation"
@@ -84,7 +83,7 @@ func (h *HttpHandler) handleCreateUser(res http.ResponseWriter, req *http.Reques
 	}
 
 	appendRes, err := db.AppendCreateUserEvent(h.Ctx, h.EsdbClient, event)
-	if err != nil && errors.Is(err, esdb.ErrWrongExpectedStreamRevision) {
+	if esdbErr, isNil := esdb.FromError(err); !isNil && esdbErr.Code() == esdb.ErrorCodeWrongExpectedVersion {
 		http.Error(res, "user already exists", http.StatusBadRequest)
 		return
 	}
@@ -137,7 +136,7 @@ func (h *HttpHandler) handleUserLogin(res http.ResponseWriter, req *http.Request
 	}
 
 	appendRes, err := db.AppendLoginUserEvent(h.Ctx, h.EsdbClient, event)
-	if err != nil && errors.Is(err, esdb.ErrStreamNotFound) {
+	if esdbErr, isNil := esdb.FromError(err); !isNil && esdbErr.Code() == esdb.ErrorCodeResourceNotFound {
 		http.Error(res, "user does not exists", http.StatusBadRequest)
 		return
 	}

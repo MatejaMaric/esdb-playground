@@ -7,7 +7,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/EventStore/EventStore-Client-Go/esdb"
+	"github.com/EventStore/EventStore-Client-Go/v3/esdb"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/ory/dockertest/v3"
 	"github.com/redis/go-redis/v9"
