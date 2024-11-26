@@ -1,6 +1,6 @@
 module github.com/MatejaMaric/esdb-playground
 
-go 1.21
+go 1.23
 
 require (
 	github.com/EventStore/EventStore-Client-Go/v3 v3.2.1
